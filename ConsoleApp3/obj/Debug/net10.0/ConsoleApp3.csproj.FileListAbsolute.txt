@@ -1,0 +1,4 @@
+C:\Users\hgros\source\repos\ConsoleApp3\obj\Debug\net10.0\ConsoleApp3.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\hgros\source\repos\ConsoleApp3\obj\Debug\net10.0\ConsoleApp3.AssemblyInfoInputs.cache
+C:\Users\hgros\source\repos\ConsoleApp3\obj\Debug\net10.0\ConsoleApp3.AssemblyInfo.cs
+C:\Users\hgros\source\repos\ConsoleApp3\obj\Debug\net10.0\ConsoleApp3.csproj.CoreCompileInputs.cache

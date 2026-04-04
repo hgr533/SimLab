@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "Q6lmzS6NKi8=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\hgros\\Desktop\\Haran\\Visual Studio\\ConsoleApp3\\ConsoleApp3.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\hgros\\.nuget\\packages\\microsoft.visualstudio.azure.containers.tools.targets\\1.23.0\\microsoft.visualstudio.azure.containers.tools.targets.1.23.0.nupkg.sha512"
+  ],
+  "logs": []
+}
