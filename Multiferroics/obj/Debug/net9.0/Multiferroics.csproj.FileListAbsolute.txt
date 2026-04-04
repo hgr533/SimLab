@@ -1,0 +1,60 @@
+C:\Users\hgros\source\repos\Multiferroics\obj\Debug\net9.0\Multiferroics.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\hgros\source\repos\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfoInputs.cache
+C:\Users\hgros\source\repos\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfo.cs
+C:\Users\hgros\source\repos\Multiferroics\obj\Debug\net9.0\Multiferroics.csproj.CoreCompileInputs.cache
+C:\Users\rutha\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.exe
+C:\Users\rutha\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.deps.json
+C:\Users\rutha\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.runtimeconfig.json
+C:\Users\rutha\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.dll
+C:\Users\rutha\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.pdb
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfoInputs.cache
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfo.cs
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.csproj.CoreCompileInputs.cache
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.dll
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\refint\Multiferroics.dll
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.pdb
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.genruntimeconfig.cache
+C:\Users\rutha\Desktop\Haran\Multiferroics\obj\Debug\net9.0\ref\Multiferroics.dll
+F:\Multiferroics\bin\Debug\net9.0\Multiferroics.exe
+F:\Multiferroics\bin\Debug\net9.0\Multiferroics.deps.json
+F:\Multiferroics\bin\Debug\net9.0\Multiferroics.runtimeconfig.json
+F:\Multiferroics\bin\Debug\net9.0\Multiferroics.dll
+F:\Multiferroics\bin\Debug\net9.0\Multiferroics.pdb
+F:\Multiferroics\obj\Debug\net9.0\Multiferroics.GeneratedMSBuildEditorConfig.editorconfig
+F:\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfoInputs.cache
+F:\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfo.cs
+F:\Multiferroics\obj\Debug\net9.0\Multiferroics.csproj.CoreCompileInputs.cache
+F:\Multiferroics\obj\Debug\net9.0\Multiferroics.dll
+F:\Multiferroics\obj\Debug\net9.0\refint\Multiferroics.dll
+F:\Multiferroics\obj\Debug\net9.0\Multiferroics.pdb
+F:\Multiferroics\obj\Debug\net9.0\Multiferroics.genruntimeconfig.cache
+F:\Multiferroics\obj\Debug\net9.0\ref\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.exe
+C:\Users\hgros\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.deps.json
+C:\Users\hgros\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.runtimeconfig.json
+C:\Users\hgros\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Multiferroics\bin\Debug\net9.0\Multiferroics.pdb
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfoInputs.cache
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfo.cs
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.csproj.CoreCompileInputs.cache
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\refint\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.pdb
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\Multiferroics.genruntimeconfig.cache
+C:\Users\hgros\Desktop\Haran\Multiferroics\obj\Debug\net9.0\ref\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\bin\Debug\net9.0\Multiferroics.exe
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\bin\Debug\net9.0\Multiferroics.deps.json
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\bin\Debug\net9.0\Multiferroics.runtimeconfig.json
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\bin\Debug\net9.0\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\bin\Debug\net9.0\Multiferroics.pdb
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\Multiferroics.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfoInputs.cache
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\Multiferroics.AssemblyInfo.cs
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\Multiferroics.csproj.CoreCompileInputs.cache
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\refint\Multiferroics.dll
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\Multiferroics.pdb
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\Multiferroics.genruntimeconfig.cache
+C:\Users\hgros\Desktop\Haran\Visual Studio\Multiferroics\obj\Debug\net9.0\ref\Multiferroics.dll
