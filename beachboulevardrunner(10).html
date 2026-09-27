@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Beach Boulevard Runner — First Person</title>
+  <style>
+    :root {
+      --ink: #141b22;
+      --paper: #f4efe6;
+      --muted: #8b97a3;
+      --void: #7c5cff;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; height: 100%;
+      background: #10151b; color: var(--paper);
+      font-family: ui-sans-serif, system-ui, Segoe UI, sans-serif;
+      overflow: hidden;
+    }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    #hud { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
+    .top {
+      display: grid; grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 10px; padding: 12px;
+    }
+    .card {
+      background: rgba(20, 27, 34, .82);
+      border: 1px solid rgba(130, 145, 160, .35);
+      border-radius: 14px; padding: 10px 12px; min-width: 0;
+    }
+    .label { font-size: 10px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+    .value { font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .sub { font-size: 12px; color: #b9a8ff; margin-top: 2px; }
+    .bar { height: 4px; background: #2a333c; border-radius: 99px; margin-top: 8px; overflow: hidden; }
+    .bar > i { display: block; height: 100%; width: 0; background: #7c5cff; }
+    #pause-btn, #view-btn {
+      pointer-events: auto; width: 48px; height: 48px; min-width: 48px; min-height: 48px;
+      border-radius: 14px;
+      border: 1px solid rgba(130,145,160,.45); background: rgba(20,27,34,.82);
+      color: var(--paper); cursor: pointer; font-size: 13px;
+      touch-action: manipulation;
+    }
+    .bottom {
+      margin-top: auto;
+      padding: 8px 12px max(14px, env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .meters {
+      width: min(520px, 100%);
+      background: rgba(20, 27, 34, .88);
+      border: 1px solid rgba(130,145,160,.4);
+      border-radius: 999px; padding: 8px 16px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .meter-row { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .08em; }
+    .meter-row span:last-child { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .track { flex: 1; height: 5px; background: #2a333c; border-radius: 99px; overflow: hidden; }
+    .track > i { display: block; height: 100%; }
+    #panel, #finish {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      background: linear-gradient(180deg, rgba(12,16,20,.55), rgba(12,16,20,.78));
+      pointer-events: auto;
+    }
+    #panel[hidden], #finish[hidden] { display: none !important; }
+    .sheet {
+      width: min(440px, 92vw);
+      background: #1a222a; border: 1px solid #44515c;
+      border-radius: 20px; padding: 22px 22px 18px;
+    }
+    h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -.02em; }
+    .eyebrow { color: #b9a8ff; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+    p.blurb { color: #b7c2cc; font-size: 14px; line-height: 1.45; }
+    .diffs { display: flex; gap: 8px; margin: 14px 0; }
+    .diffs button, .sheet .go, .sheet .ghost {
+      min-height: 48px; border-radius: 12px; cursor: pointer; font-size: 15px;
+      touch-action: manipulation;
+    }
+    .sheet .go { min-height: 52px; }
+    .diffs button { flex: 1; border: 1px solid #52606e; background: #222a32; color: white; }
+    .diffs button.on { border-color: #7c5cff; background: #2a2438; }
+    .go { width: 100%; border: 0; background: #d7c4a3; color: #1a1510; font-weight: 650; }
+    .ghost { width: 100%; margin-top: 8px; border: 1px solid #52606e; background: transparent; color: white; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0; }
+    .stat { background: #141b22; border: 1px solid #334049; border-radius: 12px; padding: 10px 12px; }
+    .stat .k { font-size: 10px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+    .stat .v { font-size: 20px; margin-top: 4px; }
+    .touch {
+      display: none;
+      pointer-events: auto;
+      width: min(560px, 100%);
+      gap: 10px;
+      align-items: stretch;
+    }
+    .touch button {
+      flex: 1;
+      min-height: 64px;
+      min-width: 64px;
+      border-radius: 18px;
+      border: 1px solid #52606e;
+      background: rgba(20,27,34,.82);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .touch button.is-down {
+      background: #2a2438;
+      border-color: #7c5cff;
+    }
+    .touch [data-sprint] {
+      flex: 1.35;
+      min-height: 72px;
+      background: #3a2f58;
+      border-color: #7c5cff;
+    }
+    .touch [data-sprint].is-down { background: #7c5cff; color: #120c22; }
+    @media (pointer: coarse) {
+      .touch { display: flex; }
+      .top { padding: max(10px, env(safe-area-inset-top)) 10px 8px; gap: 8px; }
+      .card .value { font-size: 18px; }
+    }
+    @media (pointer: coarse) and (max-width: 520px) {
+      .top { grid-template-columns: 1fr 1fr auto; }
+      .card-time { display: none; }
+      #pause-btn, #view-btn { width: 52px; height: 52px; min-width: 52px; min-height: 52px; }
+    }
+    #toast {
+      position: absolute; left: 50%; top: 28%; transform: translateX(-50%);
+      font-size: 18px; letter-spacing: .08em; color: #c9b8ff; opacity: 0;
+      text-shadow: 0 2px 12px #000; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="hud">
+    <div class="top">
+      <div class="card">
+        <div class="label">Promenade</div>
+        <div class="value" id="dist">800m</div>
+        <div class="bar"><i id="dist-fill"></i></div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div class="label">Score</div>
+        <div class="value" id="score">0</div>
+        <div class="sub" id="combo">x1.0</div>
+      </div>
+      <div class="card card-time" style="text-align:right">
+        <div class="label">Time</div>
+        <div class="value" id="time">0:00.0</div>
+        <div class="sub" id="stats">0 close · 0 contact</div>
+        <div class="sub" id="world-chip" style="color:#c9b8ff">GOLDEN · WET 0.28</div>
+      </div>
+      <button id="view-btn" type="button" aria-label="Camera">1st</button>
+      <button id="pause-btn" type="button" aria-label="Pause">II</button>
+    </div>
+    <div id="toast">CLOSE PASS</div>
+    <div class="bottom">
+      <div class="meters">
+        <div class="meter-row">STAMINA <div class="track"><i id="stam" style="width:100%;background:#e8d7b0"></i></div> <span id="stam-n">100%</span></div>
+        <div class="meter-row">FLOW <div class="track"><i id="flow" style="width:0;background:#7c5cff"></i></div> <span id="flow-n">FLAT</span></div>
+      </div>
+      <div class="touch">
+        <button type="button" data-steer="-1" aria-label="Steer left">Left</button>
+        <button type="button" data-sprint="1" aria-label="Sprint">Sprint</button>
+        <button type="button" data-steer="1" aria-label="Steer right">Right</button>
+      </div>
+    </div>
+  </div>
+  <div id="panel">
+    <div class="sheet">
+      <div class="eyebrow">Mediterranean promenade</div>
+      <h1>Beach Boulevard Runner</h1>
+      <p class="blurb">The line is ternary: −1 contact, 0 coast, +1 lock. Chase cam or first person (V). Shift / W / Space sprint.</p>
+      <div class="diffs">
+        <button type="button" data-view="chase" class="on" id="view-chase">Chase cam</button>
+        <button type="button" data-view="fp" id="view-fp">First person</button>
+      </div>
+      <div class="diffs">
+        <button type="button" data-diff="easy">Easy</button>
+        <button type="button" class="on" data-diff="normal">Normal</button>
+        <button type="button" data-diff="hard">Hard</button>
+      </div>
+      <button class="go" id="start" type="button">Start run</button>
+      <button class="ghost" id="mute" type="button">Sound on</button>
+    </div>
+  </div>
+  <div id="finish" hidden>
+    <div class="sheet">
+      <div class="eyebrow" id="grade-label">Point B reached</div>
+      <h1 id="grade">A</h1>
+      <p class="blurb" id="finish-blurb"></p>
+      <div class="stats-grid">
+        <div class="stat"><div class="k">Score</div><div class="v" id="fin-score">0</div></div>
+        <div class="stat"><div class="k">Time</div><div class="v" id="fin-time">0:00</div></div>
+        <div class="stat"><div class="k">Close passes</div><div class="v" id="fin-near">0</div></div>
+        <div class="stat"><div class="k">Contacts</div><div class="v" id="fin-hits">0</div></div>
+      </div>
+      <button class="go" id="again" type="button">Run again</button>
+      <button class="ghost" id="menu" type="button">Title</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+
+    const COURSE = 800;
+    const LANE = 6.6;
+    const BEST_KEY = "bbr-best-v2";
+    const DIFF = {
+      easy:   { base: 11.2, lateral: 9.4, drain: 14, regen: 16, max: 22, every: 22, cluster: 0.22, npc: 0.78, gap: 3.1 },
+      normal: { base: 13.4, lateral: 8.6, drain: 18, regen: 13, max: 32, every: 16, cluster: 0.36, npc: 0.96, gap: 2.45 },
+      hard:   { base: 15.2, lateral: 8.0, drain: 22, regen: 11, max: 42, every: 12, cluster: 0.50, npc: 1.14, gap: 2.05 },
+    };
+    const SHIRTS = [0x2b4c68, 0x8a3046, 0x286f72, 0x467541, 0xd07838, 0x5c4d7a, 0xcfc6b8, 0x1f2a32];
+    const SKINS  = [0xe6b795, 0xc99572, 0xa86f50, 0x8d5a3a, 0xf1c7a8, 0xb77c5e];
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const damp = (cur, target, lambda, dt) => cur + (target - cur) * (1 - Math.exp(-lambda * dt));
+    const TERN = { stay: 0.1, neutral: 1.0, flip: 5.0 };
+    function toTernary(x, lo = -0.5, hi = 0.5) {
+      if (x >= hi) return 1;
+      if (x <= lo) return -1;
+      return 0;
+    }
+    function transitionCost(prev, curr, rain) {
+      if (prev === curr) return TERN.stay;
+      const mid = prev === 0 || curr === 0;
+      return (mid ? TERN.neutral : TERN.flip) * (1 + rain * 0.55);
+    }
+    // 3-input ternary line core: left gap, right gap, echo hold.
+    function lineCore(leftClear, rightClear, echoHold) {
+      const x0 = toTernary(leftClear);
+      const x1 = toTernary(rightClear);
+      const x2 = toTernary(echoHold);
+      const sum = x0 + x1 + x2;
+      return toTernary(sum / 3, -0.34, 0.34);
+    }
+
+    function xmur3(str) {
+      let h = 1779033703 ^ str.length;
+      for (let i = 0; i < str.length; i++) {
+        h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+        h = (h << 13) | (h >>> 19);
+      }
+      return () => {
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        return (h ^= h >>> 16) >>> 0;
+      };
+    }
+    function mulberry32(a) {
+      return () => {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function createRng(seed) {
+      const r = mulberry32(xmur3(String(seed))());
+      return {
+        f: () => r(),
+        range: (a, b) => a + r() * (b - a),
+        irange: (a, b) => a + Math.floor(r() * (b - a + 1)),
+        pick: (arr) => arr[Math.floor(r() * arr.length)],
+      };
+    }
+    const worldRng = createRng("promenade-v2");
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const irand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+
+    /* Unified simulation state — every visual system reads this. */
+    const world = {
+      wetness: 0.28,
+      rain: 0,
+      fogDensity: 0.012,
+      dust: 0.28,
+      wind: 0.45,
+      spray: 0.35,
+      haze: 0.4,
+      phaseName: "GOLDEN",
+      exposure: 1.05,
+    };
+    const worldUniforms = {
+      time: { value: 0 },
+      wetness: { value: 0.28 },
+      wind: { value: 0.45 },
+      rain: { value: 0 },
+    };
+    const LANES = [-5.15, -2.55, 0, 2.55, 5.15];
+    const covers = [];
+
+    const keys = new Set();
+    let touchSteer = 0, touchSprint = false, muted = false;
+    window.addEventListener("keydown", (e) => {
+      keys.add(e.code);
+      if (["Space", "ArrowLeft", "ArrowRight", "ArrowUp"].includes(e.code)) e.preventDefault();
+    });
+    window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+    function bindHold(el, down, up) {
+      const on = (e) => {
+        e.preventDefault();
+        el.setPointerCapture?.(e.pointerId);
+        el.classList.add("is-down");
+        down();
+      };
+      const off = (e) => {
+        el.classList.remove("is-down");
+        up();
+      };
+      el.addEventListener("pointerdown", on);
+      el.addEventListener("pointerup", off);
+      el.addEventListener("pointercancel", off);
+      el.addEventListener("lostpointercapture", off);
+    }
+    document.querySelectorAll(".touch [data-steer]").forEach((b) => {
+      const v = Number(b.dataset.steer);
+      bindHold(b, () => { touchSteer = v; }, () => { if (touchSteer === v) touchSteer = 0; });
+    });
+    bindHold(document.querySelector(".touch [data-sprint]"), () => { touchSprint = true; }, () => { touchSprint = false; });
+
+    let diff = "normal";
+    document.querySelectorAll("[data-diff]").forEach((b) => {
+      b.onclick = () => {
+        diff = b.dataset.diff;
+        document.querySelectorAll("[data-diff]").forEach((x) => x.classList.toggle("on", x === b));
+      };
+    });
+
+    const scene = new THREE.Scene();
+    const skyColor = new THREE.Color(0xd4ae82);
+    scene.background = skyColor;
+    scene.fog = new THREE.FogExp2(0xd4ae82, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 220);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "low-power" });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    document.getElementById("game").appendChild(renderer.domElement);
+    let gpuName = "";
+    try {
+      const gl = renderer.getContext();
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      if (ext) gpuName = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || "");
+    } catch (_) {}
+    // HD 5450 / similar 2010-era cards: instancing still wins, fill-rate does not.
+    const LOW_GPU = /5450|5470|5550|5570|Radeon HD [456]|Intel HD Graphics [2-4]|Mali-4|Adreno [23]/i.test(gpuName)
+      || (renderer.capabilities?.maxTextures || 16) < 8;
+    renderer.setPixelRatio(LOW_GPU ? 1 : Math.min(devicePixelRatio, 1.5));
+    if (LOW_GPU) {
+      renderer.shadowMap.enabled = false;
+      renderer.antialias = false;
+    }
+
+    scene.add(new THREE.HemisphereLight(0xffe6c4, 0x3a4a3a, 0.9));
+    const sun = new THREE.DirectionalLight(0xffd4a0, 1.2);
+    sun.position.set(-18, 28, 12);
+    sun.castShadow = !LOW_GPU;
+    sun.shadow.mapSize.set(LOW_GPU ? 256 : 512, LOW_GPU ? 256 : 512);
+    sun.shadow.camera.near = 2;
+    sun.shadow.camera.far = 90;
+    sun.shadow.camera.left = -24;
+    sun.shadow.camera.right = 24;
+    sun.shadow.camera.top = 24;
+    sun.shadow.camera.bottom = -24;
+    scene.add(sun);
+
+    /* ---------- procedural promenade (cobble ribbon) ---------- */
+    function hash2(x, z) {
+      const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+    function createPromenadeGeometry(width, length, segX, segZ) {
+      const geo = new THREE.PlaneGeometry(width, length, segX, segZ);
+      geo.rotateX(-Math.PI / 2);
+      const pos = geo.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+      const cA = new THREE.Color(0x8d8274);
+      const cB = new THREE.Color(0x7a7064);
+      const cC = new THREE.Color(0x9a9080);
+      const tmp = new THREE.Color();
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const tile = hash2(Math.floor(x * 2.2), Math.floor(z * 2.2));
+        const grain = hash2(x * 6.1, z * 5.3);
+        const lip = Math.max(0, Math.abs(x) - (width * 0.5 - 0.55));
+        const y = (tile - 0.5) * 0.035 + (grain - 0.5) * 0.012 + lip * lip * 0.08;
+        pos.setY(i, y);
+        tmp.copy(tile > 0.55 ? cA : tile > 0.28 ? cB : cC);
+        tmp.offsetHSL(0, 0, (grain - 0.5) * 0.06);
+        colors[i * 3] = tmp.r; colors[i * 3 + 1] = tmp.g; colors[i * 3 + 2] = tmp.b;
+      }
+      geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+      geo.computeVertexNormals();
+      return geo;
+    }
+    const walkMat = new THREE.MeshStandardMaterial({
+      vertexColors: true, roughness: 0.86, metalness: 0.05,
+    });
+    walkMat.onBeforeCompile = (shader) => {
+      shader.uniforms.uWetness = worldUniforms.wetness;
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <common>",
+        `#include <common>
+        varying vec3 vWorldP;`
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        vWorldP = (modelMatrix * vec4(transformed, 1.0)).xyz;`
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <common>",
+        `#include <common>
+        uniform float uWetness;
+        varying vec3 vWorldP;`
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <roughnessmap_fragment>",
+        `#include <roughnessmap_fragment>
+        float puddle = 0.5 + 0.5 * sin(vWorldP.x * 1.65) * sin(vWorldP.z * 1.22);
+        puddle = smoothstep(0.52, 0.88, puddle);
+        float seaSide = smoothstep(2.0, -7.0, vWorldP.x);
+        float wet = clamp(uWetness * (0.35 + 0.65 * seaSide) + puddle * uWetness * 0.55, 0.0, 1.0);
+        roughnessFactor = mix(roughnessFactor, 0.11, wet);
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.62, wet * 0.55);`
+      );
+    };
+    const walk = new THREE.Mesh(
+      createPromenadeGeometry(16, COURSE + 80, LOW_GPU ? 12 : 24, LOW_GPU ? 80 : 140),
+      walkMat,
+    );
+    walk.position.set(0, 0, -COURSE / 2);
+    walk.receiveShadow = true;
+    scene.add(walk);
+
+    const sandMat = new THREE.MeshLambertMaterial({ color: 0xc9b189 });
+    const sandL = new THREE.Mesh(new THREE.PlaneGeometry(40, COURSE + 80), sandMat);
+    sandL.rotation.x = -Math.PI / 2; sandL.position.set(-28, -0.04, -COURSE / 2); scene.add(sandL);
+    const sandR = sandL.clone(); sandR.position.x = 22; scene.add(sandR);
+
+    /* Shore swarm — one mesh per prop type. HD 5450 pays per draw call, not per instance. */
+    const shoreDummy = new THREE.Object3D();
+    function stamp(mesh, i, x, y, z, rx, ry, rz, sx, sy, sz) {
+      shoreDummy.position.set(x, y, z);
+      shoreDummy.rotation.set(rx, ry, rz);
+      shoreDummy.scale.set(sx, sy, sz);
+      shoreDummy.updateMatrix();
+      mesh.setMatrixAt(i, shoreDummy.matrix);
+    }
+    const UMB_N = LOW_GPU ? 16 : 26;
+    const BED_N = LOW_GPU ? 20 : 34;
+    const TOWEL_N = LOW_GPU ? 16 : 28;
+    const KIT_N = LOW_GPU ? 12 : 20;
+    const beachUmbrellas = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(1.55, 0.34, LOW_GPU ? 6 : 8, 1, true),
+      new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, vertexColors: false }),
+      UMB_N,
+    );
+    beachUmbrellas.frustumCulled = false;
+    const beachPoles = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.03, 0.04, 2.05, 5),
+      new THREE.MeshLambertMaterial({ color: 0xd8d0c4 }),
+      UMB_N,
+    );
+    beachPoles.frustumCulled = false;
+    const loungers = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.62, 0.07, 1.85),
+      new THREE.MeshLambertMaterial({ color: 0xc45a3a }),
+      BED_N,
+    );
+    loungers.frustumCulled = false;
+    const towels = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.72, 0.02, 1.35),
+      new THREE.MeshLambertMaterial({ color: 0x3a6ea5 }),
+      TOWEL_N,
+    );
+    towels.frustumCulled = false;
+    const kits = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.38, 0.22, 0.55),
+      new THREE.MeshLambertMaterial({ color: 0x2f4a38 }),
+      KIT_N,
+    );
+    kits.frustumCulled = false;
+    const UMB_HEX = [0xc45a3a, 0xe8d7b0, 0x3a6ea5, 0x2d6b3a, 0x8a2d4a, 0xd4a24a];
+    const TOWEL_HEX = [0x3a6ea5, 0xc45a3a, 0xe8d7b0, 0x2d6b3a, 0x7c5cff];
+    const BED_HEX = [0xc45a3a, 0xb07a3a, 0x6a5340, 0xd8d0c4];
+    for (let i = 0; i < UMB_N; i++) {
+      const sea = i % 2 === 0;
+      const x = sea ? worldRng.range(9.2, 16.5) : worldRng.range(-22, -11);
+      const z = -12 - i * ((COURSE - 40) / UMB_N) + worldRng.range(-6, 6);
+      const yaw = worldRng.range(-0.35, 0.35);
+      stamp(beachUmbrellas, i, x, 2.02, z, 0, yaw, 0.08, 1, 1, 1);
+      stamp(beachPoles, i, x, 1.02, z, 0, 0, 0, 1, 1, 1);
+      beachUmbrellas.setColorAt(i, new THREE.Color(UMB_HEX[i % UMB_HEX.length]));
+    }
+    for (let i = 0; i < BED_N; i++) {
+      const sea = i % 3 !== 2;
+      const x = sea ? worldRng.range(8.8, 17.2) : worldRng.range(-21, -10.5);
+      const z = -8 - i * ((COURSE - 30) / BED_N) + worldRng.range(-4, 4);
+      const yaw = (sea ? -0.2 : 0.2) + worldRng.range(-0.25, 0.25);
+      stamp(loungers, i, x, 0.08, z, 0, yaw, 0, 1, 1, 1);
+      loungers.setColorAt(i, new THREE.Color(BED_HEX[i % BED_HEX.length]));
+    }
+    for (let i = 0; i < TOWEL_N; i++) {
+      const sea = i % 2 === 0;
+      const x = sea ? worldRng.range(8.6, 16.8) : worldRng.range(-20.5, -10.2);
+      const z = -16 - i * ((COURSE - 50) / TOWEL_N) + worldRng.range(-5, 5);
+      stamp(towels, i, x, 0.03, z, 0, worldRng.range(-0.4, 0.4), 0, 1, 1, 1);
+      towels.setColorAt(i, new THREE.Color(TOWEL_HEX[i % TOWEL_HEX.length]));
+    }
+    for (let i = 0; i < KIT_N; i++) {
+      const sea = i % 2 === 0;
+      const x = sea ? worldRng.range(9.4, 16) : worldRng.range(-20, -11);
+      const z = -20 - i * ((COURSE - 60) / KIT_N);
+      stamp(kits, i, x, 0.12, z, 0, worldRng.range(0, Math.PI), 0, 1, 1, 1);
+    }
+    beachUmbrellas.instanceMatrix.needsUpdate = true;
+    beachPoles.instanceMatrix.needsUpdate = true;
+    loungers.instanceMatrix.needsUpdate = true;
+    towels.instanceMatrix.needsUpdate = true;
+    kits.instanceMatrix.needsUpdate = true;
+    if (beachUmbrellas.instanceColor) beachUmbrellas.instanceColor.needsUpdate = true;
+    if (loungers.instanceColor) loungers.instanceColor.needsUpdate = true;
+    if (towels.instanceColor) towels.instanceColor.needsUpdate = true;
+    scene.add(beachUmbrellas, beachPoles, loungers, towels, kits);
+
+    const grass = new THREE.Mesh(
+      new THREE.PlaneGeometry(10, COURSE + 80),
+      new THREE.MeshLambertMaterial({ color: 0x6a8a4a }),
+    );
+    grass.rotation.x = -Math.PI / 2;
+    grass.position.set(12.4, -0.01, -COURSE / 2);
+    scene.add(grass);
+
+    /* Gerstner water */
+    const waterMat = new THREE.ShaderMaterial({
+      transparent: true,
+      uniforms: {
+        uTime: { value: 0 },
+        uColorDeep: { value: new THREE.Color(0x1c5f68) },
+        uColorShallow: { value: new THREE.Color(0x3aa0a8) },
+        uWetness: worldUniforms.wetness,
+        uSun: { value: new THREE.Vector3(0.4, 0.82, 0.35) },
+      },
+      vertexShader: `
+        uniform float uTime;
+        varying vec3 vPos;
+        varying float vWave;
+        void main() {
+          vec3 p = position;
+          float w1 = sin(p.x * 0.18 + p.y * 0.04 + uTime * 1.3);
+          float w2 = sin(p.x * 0.31 - p.y * 0.07 + uTime * 1.9);
+          p.z += w1 * 0.18 + w2 * 0.09;
+          vWave = w1 * 0.6 + w2 * 0.4;
+          vPos = p;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColorDeep;
+        uniform vec3 uColorShallow;
+        varying float vWave;
+        uniform float uWetness;
+        uniform vec3 uSun;
+        void main() {
+          vec3 col = mix(uColorDeep, uColorShallow, smoothstep(-0.4, 0.7, vWave));
+          float spec = pow(max(0.0, vWave * 0.5 + 0.5), 8.0) * (0.35 + uWetness * 0.5);
+          col += vec3(0.75, 0.88, 0.92) * spec;
+          gl_FragColor = vec4(col, 0.9);
+        }
+      `,
+    });
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(70, COURSE + 120, LOW_GPU ? 10 : 28, LOW_GPU ? 8 : 18), waterMat);
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(-48, -0.35, -COURSE / 2);
+    scene.add(water);
+
+    /* Palms: bent trunk + ruled-surface fronds, instanced */
+    function createPalmTrunkGeometry() {
+      const pts = [];
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10;
+        pts.push(new THREE.Vector3(Math.sin(t * 1.2) * 0.18 * t, t * 4.8, Math.cos(t * 0.8) * 0.08 * t));
+      }
+      const curve = new THREE.CatmullRomCurve3(pts);
+      return new THREE.TubeGeometry(curve, 12, 0.11, 6, false);
+    }
+    function createFrondGeometry() {
+      const geo = new THREE.PlaneGeometry(0.55, 2.15, 2, 8);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        const x = pos.getX(i);
+        const t = (y + 1.075) / 2.15;
+        const taper = Math.sin(t * Math.PI) * (1 - t * 0.35);
+        pos.setX(i, x * taper * 2.4);
+        pos.setZ(i, -Math.pow(t, 1.35) * 0.85);
+        pos.setY(i, t * 2.05);
+      }
+      geo.computeVertexNormals();
+      return geo;
+    }
+    const trunkGeo = createPalmTrunkGeometry();
+    const frondGeo = createFrondGeometry();
+    const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2e });
+    const frondMat = new THREE.MeshLambertMaterial({ color: 0x2f6b3a, side: THREE.DoubleSide });
+    frondMat.onBeforeCompile = (shader) => {
+      shader.uniforms.uWind = worldUniforms.wind;
+      shader.uniforms.uTime = worldUniforms.time;
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <common>",
+        `#include <common>
+        uniform float uWind;
+        uniform float uTime;`
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `float gust = uWind * 0.22 * max(position.y, 0.0);
+        float sway = sin(uTime * 2.15 + position.x * 0.8 + position.z * 0.15) * gust;
+        vec3 transformed = vec3(position.x + sway, position.y, position.z + sway * 0.45);`
+      );
+    };
+    frondMat.customProgramCacheKey = () => "frond-wind-v1";
+
+    const PALM_COUNT = LOW_GPU ? 28 : 48;
+    const FRONDS_PER = 8;
+    const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, PALM_COUNT);
+    const fronds = new THREE.InstancedMesh(frondGeo, frondMat, PALM_COUNT * FRONDS_PER);
+    trunks.castShadow = fronds.castShadow = true;
+    trunks.frustumCulled = fronds.frustumCulled = false;
+    scene.add(trunks, fronds);
+
+    const dummy = new THREE.Object3D();
+    let palmI = 0, frondI = 0;
+    for (let n = 0; n < PALM_COUNT; n++) {
+      const side = n % 2 === 0 ? -1 : 1;
+      const z = 16 - (n * 0.5) * 15.4 + worldRng.range(-2.4, 2.4);
+      const x = side * (8.15 + worldRng.range(0, 0.55));
+      const lean = worldRng.range(-0.12, 0.12);
+      const yaw = worldRng.range(0, Math.PI * 2);
+      const scale = worldRng.range(0.88, 1.18);
+      dummy.position.set(x, 0, z);
+      dummy.rotation.set(lean, yaw, -lean * 0.4);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      trunks.setMatrixAt(n, dummy.matrix);
+      for (let f = 0; f < FRONDS_PER; f++) {
+        const a = (f / FRONDS_PER) * Math.PI * 2 + worldRng.range(-0.18, 0.18);
+        dummy.position.set(x, 4.55 * scale, z);
+        dummy.rotation.set(0.55 + worldRng.range(-0.12, 0.18), a + yaw, 0.08);
+        dummy.scale.set(scale, scale * worldRng.range(0.85, 1.15), scale);
+        dummy.updateMatrix();
+        fronds.setMatrixAt(frondI++, dummy.matrix);
+      }
+      palmI++;
+    }
+    trunks.instanceMatrix.needsUpdate = true;
+    fronds.instanceMatrix.needsUpdate = true;
+
+    for (let i = 0; i < 12; i++) {
+      const h = 9 + worldRng.range(0, 12);
+      const b = new THREE.Mesh(
+        new THREE.BoxGeometry(5 + worldRng.range(0, 5), h, 4.5),
+        new THREE.MeshLambertMaterial({ color: worldRng.pick([0xe8dcc8, 0xd9cbb3, 0xcfc3b0, 0xeee4d4]) }),
+      );
+      b.position.set(16 + worldRng.range(0, 8), h / 2, -30 - i * 64);
+      scene.add(b);
+    }
+
+    function makeLamp(x, z) {
+      const g = new THREE.Group();
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.4, 6), new THREE.MeshLambertMaterial({ color: 0x3a4248 }));
+      pole.position.y = 1.7; g.add(pole);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffe0a8 }));
+      cap.position.y = 3.45; g.add(cap);
+      g.position.set(x, 0, z);
+      scene.add(g);
+    }
+    for (let z = 8; z > -COURSE; z -= 28) {
+      makeLamp(-7.4, z);
+      makeLamp(7.4, z - 14);
+      covers.push({ x: -7.4, z, q: 0.72 });
+      covers.push({ x: 7.4, z: z - 14, q: 0.66 });
+    }
+
+    function makeBench(x, z) {
+      const g = new THREE.Group();
+      const board = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.42), new THREE.MeshStandardMaterial({ color: 0x6a5340, roughness: 0.7 }));
+      board.position.y = 0.46; g.add(board);
+      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.46, 0.4), new THREE.MeshLambertMaterial({ color: 0x3a4248 }));
+      const legR = legL.clone();
+      legL.position.set(-0.68, 0.23, 0); legR.position.set(0.68, 0.23, 0);
+      g.add(legL, legR);
+      g.position.set(x, 0, z);
+      scene.add(g);
+      covers.push({ x, z, q: 0.84 });
+    }
+    for (let z = -6; z > -COURSE; z -= 46) {
+      makeBench(-6.35, z + worldRng.range(-3, 3));
+      makeBench(6.35, z - 18 + worldRng.range(-3, 3));
+    }
+
+    /* Atmospheric dust + sea spray — instanced points driven by world state */
+    function makeField(count, color, size) {
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const seed = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        pos[i * 3] = rand(-18, 14);
+        pos[i * 3 + 1] = rand(0.2, 4.8);
+        pos[i * 3 + 2] = rand(-40, 20);
+        seed[i] = Math.random() * 100;
+      }
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
+      const mat = new THREE.PointsMaterial({
+        color, size, transparent: true, opacity: 0.28,
+        depthWrite: false, sizeAttenuation: true,
+      });
+      const pts = new THREE.Points(geo, mat);
+      pts.frustumCulled = false;
+      scene.add(pts);
+      return { geo, mat, pts, count, pos };
+    }
+    const dustField = makeField(LOW_GPU ? 90 : 220, 0xcbb48a, 0.07);
+    const sprayField = makeField(LOW_GPU ? 70 : 160, 0xd7eef0, 0.055);
+    const hemi = scene.children.find((o) => o.isHemisphereLight);
+
+    /* ---------- athlete ---------- */
+    function makeRunner(shirtHex, isPlayer) {
+      const g = new THREE.Group();
+      const skin = new THREE.MeshLambertMaterial({ color: 0xc99572 });
+      const shirt = new THREE.MeshLambertMaterial({ color: shirtHex });
+      const pants = new THREE.MeshLambertMaterial({ color: isPlayer ? 0x1d2a33 : 0x2a333c });
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.34, 3, 6), shirt);
+      torso.position.y = 1.16; torso.castShadow = true; torso.name = "fp-hide"; g.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), skin);
+      head.position.y = 1.56; head.name = "fp-hide"; g.add(head);
+      const limbs = [];
+      const spec = [
+        [pants, -0.12, 0.55], [pants, 0.12, 0.55],
+        [shirt, -0.24, 1.22], [shirt, 0.24, 1.22],
+      ];
+      for (const [mat, x, y] of spec) {
+        const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.34, 2, 5), mat);
+        m.position.set(x, y, 0); g.add(m); limbs.push(m);
+      }
+      g.rotation.y = Math.PI;
+      return { group: g, limbs, update(phase, sprint) {
+        const sw = Math.sin(phase) * (sprint ? 0.95 : 0.58);
+        g.children[0].position.y = 1.16 + Math.abs(Math.sin(phase)) * 0.04;
+        limbs[0].rotation.x = sw; limbs[1].rotation.x = -sw;
+        limbs[2].rotation.x = -sw * 0.7; limbs[3].rotation.x = sw * 0.7;
+      } };
+    }
+    const player = makeRunner(0x2a6f86, true);
+    scene.add(player.group);
+
+    /* ---------- void clone shader + pool ---------- */
+    const voidVert = /* glsl */`
+      uniform float uTime;
+      uniform float uDispersion;
+      uniform float uDissolve;
+      uniform float uSeed;
+      varying vec3 vObj;
+      varying vec3 vWorldN;
+      varying vec3 vViewDir;
+      varying float vFres;
+
+      vec4 qmul(vec4 a, vec4 b) {
+        return vec4(
+          a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,
+          a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,
+          a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w,
+          a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z
+        );
+      }
+      vec3 cayleyDisplace(vec3 p, float t, float breakup) {
+        if (breakup <= 0.0) return p;
+        vec4 q = normalize(vec4(sin(t*0.7+uSeed), cos(t*0.53), sin(t*0.31+p.y), 1.0));
+        vec4 v = vec4(p * 0.85, 0.0);
+        vec4 r = qmul(qmul(q, v), vec4(-q.xyz, q.w));
+        vec3 folded = mix(p, r.xyz, 0.72);
+        vec3 offset = folded - p;
+        vec3 away = normalize(p + vec3(0.0, 0.15, 0.0));
+        float lens = 0.18 * breakup * (1.0 + 0.35*sin(t*3.1 + p.y*6.0));
+        return p + offset * breakup + away * lens * length(p.xz);
+      }
+      void main() {
+        float breakup = max(uDispersion - 1.0, 0.0);
+        vec3 pos = cayleyDisplace(position, uTime + uSeed * 11.0, breakup);
+        vObj = position;
+        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+        vec3 n = normalize(normalMatrix * normal);
+        vWorldN = n;
+        vViewDir = normalize(-mv.xyz);
+        vFres = pow(1.0 - clamp(dot(vViewDir, n), 0.0, 1.0), 4.4);
+        gl_Position = projectionMatrix * mv;
+      }
+    `;
+    const voidFrag = /* glsl */`
+      uniform float uTime;
+      uniform float uDissolve;
+      uniform vec3 uShadowColor;
+      uniform vec3 uEdgeColor;
+      varying vec3 vObj;
+      varying vec3 vWorldN;
+      varying vec3 vViewDir;
+      varying float vFres;
+      float hash(vec3 p) {
+        return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+      }
+      float noise3(vec3 p) {
+        vec3 i = floor(p); vec3 f = fract(p);
+        f = f*f*(3.0-2.0*f);
+        return mix(
+          mix(mix(hash(i), hash(i+vec3(1,0,0)), f.x),
+              mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+          mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x),
+              mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y), f.z);
+      }
+      void main() {
+        float n = noise3(vObj * 6.4 + uTime * 0.35);
+        float thresh = mix(-0.18, 1.18, uDissolve);
+        float keep = smoothstep(thresh + 0.22, thresh - 0.12, n);
+        float rimPulse = 0.82 + 0.18 * sin(uTime * 10.0);
+        float rim = clamp(vFres * rimPulse, 0.0, 1.0);
+        vec3 col = mix(uShadowColor, uEdgeColor, rim);
+        float veins = pow(noise3(vObj * 14.0 + uTime * 1.6), 6.0);
+        col += uEdgeColor * veins * 0.55 * (0.35 + uDissolve);
+        float alpha = keep * mix(0.92, 0.18, uDissolve) * (0.55 + rim * 0.45);
+        if (alpha < 0.04) discard;
+        gl_FragColor = vec4(col, alpha);
+      }
+    `;
+    function makeVoidMaterial(seed) {
+      return new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        uniforms: {
+          uTime: { value: 0 },
+          uDispersion: { value: 1 },
+          uDissolve: { value: 0 },
+          uSeed: { value: seed },
+          uShadowColor: { value: new THREE.Color(0x05030c) },
+          uEdgeColor: { value: new THREE.Color(0x7c5cff) },
+        },
+        vertexShader: voidVert,
+        fragmentShader: voidFrag,
+      });
+    }
+
+    function makeCloneBody(mat) {
+      const g = new THREE.Group();
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.36, 4, 8), mat);
+      torso.position.y = 1.16; g.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 10), mat);
+      head.position.y = 1.56; g.add(head);
+      const limbs = [];
+      const spec = [[-0.12, 0.55], [0.12, 0.55], [-0.24, 1.22], [0.24, 1.22]];
+      for (const [x, y] of spec) {
+        const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.34, 3, 6), mat);
+        m.position.set(x, y, 0); g.add(m); limbs.push(m);
+      }
+      g.visible = false;
+      return { group: g, limbs };
+    }
+
+    const MAX_CLONES = 6;
+    const clones = [];
+    for (let i = 0; i < MAX_CLONES; i++) {
+      const mat = makeVoidMaterial(i * 1.71);
+      const body = makeCloneBody(mat);
+      scene.add(body.group);
+      clones.push({
+        alive: false, age: 0, duration: 1.15, hold: 0.12,
+        x: 0, z: 0, lean: 0, phase: 0,
+        mat, body,
+      });
+    }
+
+    const SHARD_N = MAX_CLONES * 16;
+    function createShardGeometry() {
+      const g = new THREE.TetrahedronGeometry(0.09, 0);
+      const pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        pos.setXYZ(i, pos.getX(i) * rand(0.6, 1.5), pos.getY(i) * rand(0.5, 1.6), pos.getZ(i) * rand(0.6, 1.4));
+      }
+      g.computeVertexNormals();
+      return g;
+    }
+    const shardMat = new THREE.MeshBasicMaterial({
+      color: 0x8f74ff, transparent: true, opacity: 0.85, depthWrite: false,
+    });
+    const shards = new THREE.InstancedMesh(createShardGeometry(), shardMat, SHARD_N);
+    shards.frustumCulled = false;
+    shards.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(shards);
+
+    const RING_N = MAX_CLONES * 3;
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x7c5cff, transparent: true, opacity: 0.55,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const rings = new THREE.InstancedMesh(new THREE.TorusGeometry(0.55, 0.018, 6, 24), ringMat, RING_N);
+    rings.frustumCulled = false;
+    rings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(rings);
+
+    const shardState = Array.from({ length: SHARD_N }, () => ({
+      live: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, age: 0, life: 0.7, s: 1,
+    }));
+    const ringState = Array.from({ length: RING_N }, () => ({
+      live: false, x: 0, y: 0, z: 0, age: 0, life: 0.55, r: 0.4,
+    }));
+
+    function hideInstanced(mesh, i) {
+      dummy.position.set(0, -80, 0); dummy.scale.setScalar(0.001); dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
+    }
+    function spawnClone(x, z, lean, phase) {
+      const slot = clones.find((c) => !c.alive) || clones.reduce((a, b) => (a.age > b.age ? a : b));
+      slot.alive = true; slot.age = 0; slot.gated = false; slot.duration = 1.12 + Math.random() * 0.12;
+      slot.hold = 0.11; slot.x = x; slot.z = z + 2.15; slot.lean = lean; slot.phase = phase;
+      slot.mat.uniforms.uDispersion.value = 1;
+      slot.mat.uniforms.uDissolve.value = 0;
+      slot.body.group.visible = true;
+      slot.body.group.position.set(slot.x, 0, slot.z);
+      slot.body.group.rotation.set(0, Math.PI + lean, lean * 0.28);
+      const sw = Math.sin(phase) * 0.9;
+      slot.body.limbs[0].rotation.x = sw; slot.body.limbs[1].rotation.x = -sw;
+      slot.body.limbs[2].rotation.x = -sw * 0.7; slot.body.limbs[3].rotation.x = sw * 0.7;
+      const si = clones.indexOf(slot) * 16;
+      for (let k = 0; k < 16; k++) {
+        const s = shardState[si + k];
+        const a = (k / 16) * Math.PI * 2;
+        s.live = true; s.age = 0; s.life = 0.55 + Math.random() * 0.35;
+        s.x = x + Math.cos(a) * 0.12; s.y = 0.6 + (k % 5) * 0.22; s.z = slot.z + Math.sin(a) * 0.12;
+        s.vx = Math.cos(a) * (1.2 + Math.random()); s.vy = 0.6 + Math.random() * 1.4;
+        s.vz = Math.sin(a) * (0.4 + Math.random() * 0.8) + 0.4;
+        s.spin = rand(-6, 6); s.s = rand(0.7, 1.4);
+      }
+      const ri = clones.indexOf(slot) * 3;
+      for (let k = 0; k < 3; k++) {
+        const r = ringState[ri + k];
+        r.live = true; r.age = -k * 0.08; r.life = 0.5 + k * 0.08;
+        r.x = x; r.y = 0.35 + k * 0.38; r.z = slot.z; r.r = 0.28 + k * 0.12;
+      }
+    }
+    function updateClones(dt, t) {
+      for (const c of clones) {
+        if (!c.alive) { c.body.group.visible = false; continue; }
+        c.age += dt;
+        const u = clamp((c.age - c.hold) / Math.max(0.001, c.duration - c.hold), 0, 1);
+        const targetDisp = c.age < c.hold ? 1 : 1 + u * 2.15;
+        const targetDiss = c.age < c.hold ? 0 : Math.pow(u, 0.85);
+        c.mat.uniforms.uTime.value = t;
+        c.mat.uniforms.uDispersion.value = damp(c.mat.uniforms.uDispersion.value, targetDisp, 6.32, dt);
+        c.mat.uniforms.uDissolve.value = damp(c.mat.uniforms.uDissolve.value, targetDiss, 5.1, dt);
+        c.body.group.position.set(c.x, 0, c.z);
+        if (c.age >= c.duration) {
+          c.alive = false;
+          c.body.group.visible = false;
+        }
+      }
+      for (let i = 0; i < SHARD_N; i++) {
+        const s = shardState[i];
+        if (!s.live) { hideInstanced(shards, i); continue; }
+        s.age += dt;
+        if (s.age > s.life) { s.live = false; hideInstanced(shards, i); continue; }
+        s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
+        s.vy -= 3.4 * dt;
+        const fade = 1 - s.age / s.life;
+        dummy.position.set(s.x, s.y, s.z);
+        dummy.rotation.set(s.age * s.spin, s.age * 2.1, s.age * 1.4);
+        dummy.scale.setScalar(s.s * fade);
+        dummy.updateMatrix();
+        shards.setMatrixAt(i, dummy.matrix);
+      }
+      shards.instanceMatrix.needsUpdate = true;
+      for (let i = 0; i < RING_N; i++) {
+        const r = ringState[i];
+        if (!r.live || r.age < 0) {
+          if (r.age < 0) r.age += dt;
+          hideInstanced(rings, i); continue;
+        }
+        r.age += dt;
+        if (r.age > r.life) { r.live = false; hideInstanced(rings, i); continue; }
+        const k = r.age / r.life;
+        dummy.position.set(r.x, r.y + k * 0.35, r.z);
+        dummy.rotation.set(Math.PI / 2, 0, r.age * 1.8);
+        dummy.scale.setScalar(r.r * (1 + k * 2.4));
+        dummy.updateMatrix();
+        rings.setMatrixAt(i, dummy.matrix);
+      }
+      rings.instanceMatrix.needsUpdate = true;
+    }
+
+    /* ---------- crowd ---------- */
+    const MAX = 48;
+    const people = Array.from({ length: MAX }, () => ({
+      active: false, x: 0, z: 0, targetX: 0, dir: 1, speed: 1, phase: 0,
+      scale: 1, kind: "walk", radius: 0.44, near: false, hit: false, facing: 0,
+      shirt: new THREE.Color(), skin: new THREE.Color(), wander: 0.5,
+      lane: 2, cover: false, vx: 0, vz: -1, heading: 0, dog: -1, umbrella: false,
+      talking: false, stroller: false, sand: false, skim: false,
+    }));
+    const torsos = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.16, 0.28, 3, 6), new THREE.MeshLambertMaterial(), MAX);
+    const heads  = new THREE.InstancedMesh(new THREE.SphereGeometry(0.13, 8, 8), new THREE.MeshLambertMaterial(), MAX);
+    const limbs  = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.045, 0.32, 2, 5), new THREE.MeshLambertMaterial(), MAX * 4);
+    for (const m of [torsos, heads, limbs]) {
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.frustumCulled = false;
+    }
+    torsos.castShadow = heads.castShadow = true;
+    scene.add(torsos, heads, limbs);
+
+    const MAX_DOGS = 18;
+    const DOG_COLORS = [0x3b2a1d, 0xc8b089, 0x6a5a4a, 0x1f1a16, 0xb07a3a, 0xe8e0d4];
+    const dogs = Array.from({ length: MAX_DOGS }, () => ({
+      active: false, x: 0, z: 0, vx: 0, vz: 0, phase: 0, scale: 1,
+      owner: -1, leashed: false, leashDist: 1.2, radius: 0.28, near: false, hit: false,
+      facing: 0, color: new THREE.Color(), sand: false, thread: false, skim: false,
+    }));
+    const dogBodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.09, 0.28, 2, 6), new THREE.MeshLambertMaterial(), MAX_DOGS);
+    const dogHeads  = new THREE.InstancedMesh(new THREE.SphereGeometry(0.09, 7, 7), new THREE.MeshLambertMaterial(), MAX_DOGS);
+    const dogTails  = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.025, 0.16, 2, 5), new THREE.MeshLambertMaterial(), MAX_DOGS);
+    for (const m of [dogBodies, dogHeads, dogTails]) {
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.frustumCulled = false;
+      m.castShadow = true;
+    }
+    scene.add(dogBodies, dogHeads, dogTails);
+    const leashPos = new Float32Array(MAX_DOGS * 12);
+    const leashGeo = new THREE.BufferGeometry();
+    leashGeo.setAttribute("position", new THREE.BufferAttribute(leashPos, 3));
+    const leashLines = new THREE.LineSegments(leashGeo, new THREE.LineBasicMaterial({ color: 0x6a4a2c, transparent: true, opacity: 0.95 }));
+    leashLines.frustumCulled = false;
+    scene.add(leashLines);
+    const umbrellas = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(0.42, 0.18, 8, 1, true),
+      new THREE.MeshLambertMaterial({ color: 0x3a4a68, side: THREE.DoubleSide }),
+      MAX,
+    );
+    umbrellas.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    umbrellas.frustumCulled = false;
+    scene.add(umbrellas);
+    const strollers = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.55, 0.42, 0.72),
+      new THREE.MeshLambertMaterial({ color: 0xd8d2c6 }),
+      MAX,
+    );
+    strollers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    strollers.frustumCulled = false;
+    scene.add(strollers);
+
+    function hideAt(mesh, i) {
+      dummy.position.set(0, -80, 0); dummy.scale.setScalar(0); dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
+    }
+    function activeCount() { return people.reduce((n, p) => n + (p.active ? 1 : 0), 0); }
+    function pickHeading(kind) {
+      if (kind === "runner" || kind === "cycle") {
+        return Math.random() < 0.5 ? 0 : Math.PI;
+      }
+      const roll = Math.random();
+      if (roll < 0.28) return Math.random() < 0.5 ? 0 : Math.PI;
+      if (roll < 0.72) return Math.random() < 0.5 ? Math.PI * 0.5 : -Math.PI * 0.5;
+      return rand(-Math.PI, Math.PI);
+    }
+    function activate(p, x, z, cfg) {
+      const roll = Math.random();
+      const kid = roll < 0.08;
+      const runner = !kid && roll < 0.28;
+      const cycle = !kid && !runner && roll < 0.38;
+      const jog = !kid && !runner && !cycle && roll < 0.58;
+      p.active = true; p.x = clamp(x, -LANE, LANE); p.targetX = p.x;
+      p.z = z; p.dir = Math.random() < 0.5 ? -1 : 1;
+      p.kind = kid ? "kid" : runner ? "runner" : cycle ? "cycle" : jog ? "jog" : "walk";
+      p.scale = kid ? 0.72 : runner ? rand(0.96, 1.08) : cycle ? 1.0 : rand(0.92, 1.08);
+      const base = p.kind === "runner" ? rand(4.2, 6.1)
+        : p.kind === "cycle" ? rand(5.4, 7.2)
+        : p.kind === "jog" ? rand(2.4, 3.6)
+        : rand(0.85, 1.7);
+      p.speed = base * cfg.npc * (kid ? 0.85 : 1);
+      p.phase = rand(0, Math.PI * 2);
+      p.radius = kid ? 0.32 : p.kind === "cycle" ? 0.5 : 0.44;
+      p.near = false; p.hit = false; p.wander = rand(0.35, 1);
+      p.heading = pickHeading(p.kind);
+      if (p.kind === "runner" || p.kind === "cycle") p.heading = p.dir === 1 ? 0 : Math.PI;
+      p.facing = p.heading;
+      p.vx = Math.sin(p.heading) * p.speed;
+      p.vz = Math.cos(p.heading) * (p.kind === "walk" || p.kind === "kid" ? p.speed * 0.75 : p.speed);
+      p.lane = LANES.reduce((best, lx, i) => Math.abs(lx - p.x) < Math.abs(LANES[best] - p.x) ? i : best, 2);
+      p.cover = false; p.dog = -1;
+      p.talking = false; p.sand = false; p.skim = false;
+      p.stroller = p.kind === "walk" && Math.random() < 0.12;
+      if (p.stroller) p.radius = 0.62;
+      p.umbrella = (p.kind === "walk" || p.kind === "kid") && Math.random() < 0.35;
+      p.shirt.setHex(p.kind === "runner" ? [0x1e6b8a, 0xc45a2a, 0x2d6b3a, 0x8a2d4a][irand(0, 3)] : SHIRTS[irand(0, SHIRTS.length - 1)]);
+      p.skin.setHex(SKINS[irand(0, SKINS.length - 1)]);
+      const i = people.indexOf(p);
+      torsos.setColorAt(i, p.shirt); heads.setColorAt(i, p.skin);
+    }
+    function activateDog(d, x, z, ownerIdx, leashed) {
+      d.active = true; d.x = x; d.z = z; d.owner = ownerIdx; d.leashed = leashed;
+      d.scale = leashed ? rand(0.72, 0.92) : rand(0.8, 1.15);
+      d.phase = rand(0, Math.PI * 2);
+      d.radius = 0.26 * d.scale;
+      d.near = false; d.hit = false; d.thread = false; d.sand = false; d.skim = false;
+      const ang = rand(-Math.PI, Math.PI);
+      const spd = leashed ? rand(1.1, 1.8) : rand(1.6, 3.2);
+      d.vx = Math.sin(ang) * spd; d.vz = Math.cos(ang) * spd;
+      d.facing = ang; d.color.setHex(DOG_COLORS[irand(0, DOG_COLORS.length - 1)]);
+      const i = dogs.indexOf(d);
+      dogBodies.setColorAt(i, d.color); dogHeads.setColorAt(i, d.color); dogTails.setColorAt(i, d.color);
+    }
+    function sandX(sea) {
+      return sea ? rand(9.2, 16.4) : rand(-20.5, -11);
+    }
+    function restampSandPerson(p, playerZ, cfg) {
+      const sea = Math.random() < 0.55;
+      activate(p, 0, playerZ - rand(18, 78), cfg);
+      p.sand = true;
+      p.kind = "walk";
+      p.stroller = false;
+      p.umbrella = Math.random() < 0.72;
+      p.x = sandX(sea);
+      p.speed = rand(0.12, 0.55);
+      p.heading = sea ? rand(-0.45, 0.25) : Math.PI + rand(-0.25, 0.45);
+      p.facing = p.heading;
+      p.vx = Math.sin(p.heading) * p.speed * 0.25;
+      p.vz = Math.cos(p.heading) * p.speed * 0.2;
+      p.radius = 0.5;
+      p.dog = -1;
+      p.talking = false;
+    }
+    function restampSandDog(d, playerZ) {
+      const sea = Math.random() < 0.55;
+      activateDog(d, sandX(sea), playerZ - rand(16, 74), -1, false);
+      d.sand = true;
+    }
+    function spawnSandBand(playerZ, cfg) {
+      const wantP = LOW_GPU ? 6 : 10;
+      const wantD = LOW_GPU ? 4 : 6;
+      let sp = people.reduce((n, p) => n + (p.active && p.sand ? 1 : 0), 0);
+      while (sp < wantP) {
+        const p = people.find((q) => !q.active);
+        if (!p) break;
+        restampSandPerson(p, playerZ, cfg);
+        sp++;
+      }
+      let sd = dogs.reduce((n, d) => n + (d.active && d.sand ? 1 : 0), 0);
+      while (sd < wantD) {
+        const d = dogs.find((q) => !q.active);
+        if (!d) break;
+        restampSandDog(d, playerZ);
+        sd++;
+      }
+    }
+    function placeX(packX, gapX, gap) {
+      for (let n = 0; n < 6; n++) {
+        const x = clamp(packX + rand(-0.7, 0.7), -LANE, LANE);
+        if (Math.abs(x - gapX) >= gap * 0.45) return x;
+      }
+      return clamp(gapX + (packX >= gapX ? 1 : -1) * gap * 0.7, -LANE, LANE);
+    }
+    function spawnWave(playerZ, cfg) {
+      let n = activeCount();
+      if (n >= cfg.max) return;
+      const packs = n < cfg.max * 0.55 ? 2 : 1;
+      for (let pack = 0; pack < packs && n < cfg.max; pack++) {
+        const gapX = rand(-4.4, 4.4);
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const packX = clamp(gapX + side * (cfg.gap * 0.7 + rand(0.4, 1.6)), -LANE, LANE);
+        const z0 = playerZ - rand(32, 58) - pack * rand(12, 22);
+        const count = 2 + (Math.random() < cfg.cluster ? irand(1, 3) : 0);
+        for (let k = 0; k < count && n < cfg.max; k++) {
+          const p = people.find((q) => !q.active);
+          if (!p) break;
+          activate(p, placeX(packX, gapX, cfg.gap), z0 - k * rand(1.1, 2), cfg);
+          n++;
+          if ((p.kind === "walk" || p.kind === "jog") && Math.random() < 0.42) {
+            const d = dogs.find((q) => !q.active);
+            if (d) {
+              const pi = people.indexOf(p);
+              activateDog(d, p.x + rand(-0.6, 0.6), p.z + rand(-0.5, 0.5), pi, true);
+              p.dog = dogs.indexOf(d);
+            }
+          }
+        }
+      }
+      if (Math.random() < 0.65) {
+        const d = dogs.find((q) => !q.active);
+        if (d) activateDog(d, rand(-LANE, LANE), playerZ - rand(20, 70), -1, false);
+      }
+      if (torsos.instanceColor) torsos.instanceColor.needsUpdate = true;
+      if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+    }
+    function populate(playerZ, cfg) {
+      for (const p of people) p.active = false;
+      for (const d of dogs) d.active = false;
+      const n = Math.min(cfg.max, 20);
+      for (let i = 0; i < n; i++) activate(people[i], rand(-LANE, LANE), playerZ - rand(8, 88), cfg);
+      // Crossing walkers in the first 40m so "all directions" is obvious on boot.
+      for (let i = 0; i < 5; i++) {
+        const p = people.find((q) => !q.active);
+        if (!p) break;
+        activate(p, rand(-LANE, LANE), playerZ - 10 - i * 6, cfg);
+        p.kind = "walk"; p.stroller = i === 0 || i === 3;
+        if (p.stroller) p.radius = 0.62;
+        p.heading = i % 2 === 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+        p.facing = p.heading;
+        p.speed = rand(1.05, 1.55) * cfg.npc;
+        p.vx = Math.sin(p.heading) * p.speed;
+        p.vz = Math.cos(p.heading) * p.speed * 0.15;
+      }
+      spawnTalkers(playerZ - 14, cfg);
+      spawnTalkers(playerZ - 36, cfg);
+      spawnRunnerPack(playerZ, cfg, { oncoming: true, lane: LANES[3], z: playerZ - 16, count: 3 });
+      // Second pack goes with the player so both directions show at once.
+      const withFlow = people.filter((q) => !q.active).slice(0, 3);
+      withFlow.forEach((p, n) => {
+        activate(p, LANES[1] + rand(-0.2, 0.2), playerZ - 22 - n * 1.6, cfg);
+        p.kind = "runner"; p.heading = Math.PI; p.facing = Math.PI;
+        p.speed = rand(4.2, 5.6) * cfg.npc; p.vx = 0; p.vz = -p.speed;
+        p.shirt.setHex([0x1e6b8a, 0xc45a2a, 0x2d6b3a, 0x8a2d4a][n % 4]);
+        torsos.setColorAt(people.indexOf(p), p.shirt);
+      });
+      let leashed = 0, strays = 0;
+      for (const owner of people) {
+        if (!owner.active || owner.kind !== "walk" || owner.dog >= 0 || owner.talking) continue;
+        if (leashed >= 4) break;
+        const d = dogs.find((q) => !q.active);
+        if (!d) break;
+        activateDog(d, owner.x + 0.55, owner.z + 0.2, people.indexOf(owner), true);
+        owner.dog = dogs.indexOf(d);
+        leashed++;
+      }
+      while (strays < 4) {
+        const d = dogs.find((q) => !q.active);
+        if (!d) break;
+        activateDog(d, rand(-LANE, LANE), playerZ - rand(8, 55), -1, false);
+        strays++;
+      }
+      spawnSandBand(playerZ, cfg);
+      // Near-field cluster so the first 40m of shore is obviously occupied.
+      for (let i = 0; i < (LOW_GPU ? 3 : 4); i++) {
+        const p = people.find((q) => !q.active);
+        if (!p) break;
+        restampSandPerson(p, playerZ + 4, cfg);
+        p.z = playerZ - 4 - i * 7;
+        p.x = i % 2 === 0 ? rand(9.4, 14.5) : rand(-18, -11.2);
+      }
+      for (let i = 0; i < 2; i++) {
+        const d = dogs.find((q) => !q.active);
+        if (!d) break;
+        restampSandDog(d, playerZ);
+        d.z = playerZ - 8 - i * 9;
+        d.x = i % 2 === 0 ? rand(10, 15) : rand(-19, -11.5);
+      }
+      if (torsos.instanceColor) torsos.instanceColor.needsUpdate = true;
+      if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+      if (dogBodies.instanceColor) dogBodies.instanceColor.needsUpdate = true;
+      if (dogHeads.instanceColor) dogHeads.instanceColor.needsUpdate = true;
+      if (dogTails.instanceColor) dogTails.instanceColor.needsUpdate = true;
+    }
+    function spawnTalkers(playerZ, cfg) {
+      const a = people.find((q) => !q.active);
+      const b = people.find((q) => !q.active && q !== a);
+      if (!a || !b) return;
+      const x = rand(-3.8, 3.8), z = playerZ - rand(28, 70);
+      activate(a, x - 0.45, z, cfg);
+      activate(b, x + 0.45, z, cfg);
+      a.kind = b.kind = "walk";
+      a.talking = b.talking = true;
+      a.stroller = b.stroller = false;
+      a.speed = b.speed = 0.05;
+      a.vx = a.vz = b.vx = b.vz = 0;
+      a.heading = Math.PI * 0.5; b.heading = -Math.PI * 0.5;
+      a.facing = a.heading; b.facing = b.heading;
+      if (torsos.instanceColor) torsos.instanceColor.needsUpdate = true;
+      if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+    }
+    function spawnRunnerPack(playerZ, cfg, opt = {}) {
+      const count = opt.count || 3 + irand(0, 2);
+      const oncoming = opt.oncoming != null ? opt.oncoming : Math.random() < 0.55;
+      const lane = opt.lane != null ? opt.lane : LANES[irand(0, LANES.length - 1)];
+      const z0 = opt.z != null ? opt.z : playerZ - rand(40, 72);
+      for (let n = 0; n < count; n++) {
+        const p = people.find((q) => !q.active);
+        if (!p) break;
+        activate(p, lane + rand(-0.35, 0.35), z0 - n * 1.7, cfg);
+        p.kind = "runner";
+        p.dir = oncoming ? 1 : -1;
+        p.heading = oncoming ? 0 : Math.PI;
+        p.facing = p.heading;
+        p.speed = rand(4.2, 6.1) * cfg.npc;
+        p.vx = 0;
+        p.vz = oncoming ? p.speed : -p.speed;
+        p.shirt.setHex([0x1e6b8a, 0xc45a2a, 0x2d6b3a, 0x8a2d4a][irand(0, 3)]);
+        const i = people.indexOf(p);
+        torsos.setColorAt(i, p.shirt);
+      }
+      if (torsos.instanceColor) torsos.instanceColor.needsUpdate = true;
+    }
+    function writeHuman(p, i) {
+      if (!p.active) {
+        hideAt(torsos, i); hideAt(heads, i); hideAt(strollers, i);
+        for (let k = 0; k < 4; k++) hideAt(limbs, i * 4 + k);
+        return;
+      }
+      const s = p.scale;
+      dummy.scale.setScalar(s); dummy.rotation.set(0, p.facing, 0);
+      dummy.position.set(p.x, 1.12 * s, p.z); dummy.updateMatrix(); torsos.setMatrixAt(i, dummy.matrix);
+      dummy.position.set(p.x, 1.5 * s, p.z); dummy.updateMatrix(); heads.setMatrixAt(i, dummy.matrix);
+      const fx = Math.sin(p.facing), fz = Math.cos(p.facing), rx = Math.cos(p.facing), rz = -Math.sin(p.facing);
+      const amp = p.kind === "runner" ? 1.05 : p.kind === "jog" ? 0.9 : p.kind === "cycle" ? 0.22 : p.talking ? 0.12 : 0.55;
+      const swing = Math.sin(p.phase) * amp;
+      const off = [
+        { x: -0.12, y: 0.55, z: swing * 0.16, rot: swing },
+        { x:  0.12, y: 0.55, z: -swing * 0.16, rot: -swing },
+        { x: -0.22, y: 1.22, z: -swing * 0.12, rot: -swing * 0.7 },
+        { x:  0.22, y: 1.22, z: swing * 0.12, rot: swing * 0.7 },
+      ];
+      for (let k = 0; k < 4; k++) {
+        const o = off[k];
+        dummy.position.set(p.x + rx * o.x * s + fx * o.z * s, o.y * s, p.z + rz * o.x * s + fz * o.z * s);
+        dummy.rotation.set(o.rot, p.facing, 0); dummy.scale.setScalar(s); dummy.updateMatrix();
+        limbs.setMatrixAt(i * 4 + k, dummy.matrix);
+        limbs.setColorAt(i * 4 + k, k < 2 ? p.shirt : p.skin);
+      }
+      if (p.stroller) {
+        dummy.position.set(p.x + fx * 0.55, 0.28, p.z + fz * 0.55);
+        dummy.rotation.set(0, p.facing, 0);
+        dummy.scale.setScalar(s);
+        dummy.updateMatrix();
+        strollers.setMatrixAt(i, dummy.matrix);
+      } else hideAt(strollers, i);
+    }
+    function writeDog(d, i) {
+      if (!d.active) {
+        hideAt(dogBodies, i); hideAt(dogHeads, i); hideAt(dogTails, i);
+        for (let k = 0; k < 12; k++) if (k % 3 === 1) leashPos[i * 12 + k] = -80;
+        return;
+      }
+      const s = d.scale;
+      dummy.position.set(d.x, 0.22 * s, d.z);
+      dummy.rotation.set(0, d.facing, 0.08 * Math.sin(d.phase));
+      dummy.scale.set(s, s, s * 1.15);
+      dummy.updateMatrix(); dogBodies.setMatrixAt(i, dummy.matrix);
+      const fx = Math.sin(d.facing), fz = Math.cos(d.facing);
+      dummy.position.set(d.x + fx * 0.18 * s, 0.32 * s, d.z + fz * 0.18 * s);
+      dummy.scale.setScalar(s); dummy.rotation.set(0, d.facing, 0);
+      dummy.updateMatrix(); dogHeads.setMatrixAt(i, dummy.matrix);
+      dummy.position.set(d.x - fx * 0.22 * s, 0.28 * s + Math.sin(d.phase * 2.0) * 0.04, d.z - fz * 0.22 * s);
+      dummy.rotation.set(0.4, d.facing, 0.7 * Math.sin(d.phase));
+      dummy.scale.setScalar(s); dummy.updateMatrix(); dogTails.setMatrixAt(i, dummy.matrix);
+      if (d.leashed && d.owner >= 0 && people[d.owner].active) {
+        const o = people[d.owner];
+        const ox = o.x + Math.sin(o.facing + 0.4) * 0.16, oy = 0.74, oz = o.z;
+        const dx = d.x, dy = 0.30, dz = d.z;
+        const dist = Math.hypot(dx - ox, dz - oz);
+        const slack = clamp(1 - dist / 1.15, 0, 1);
+        const mx = (ox + dx) * 0.5, mz = (oz + dz) * 0.5;
+        const my = (oy + dy) * 0.5 - slack * 0.32;
+        const b = i * 12;
+        leashPos[b] = ox; leashPos[b+1] = oy; leashPos[b+2] = oz;
+        leashPos[b+3] = mx; leashPos[b+4] = my; leashPos[b+5] = mz;
+        leashPos[b+6] = mx; leashPos[b+7] = my; leashPos[b+8] = mz;
+        leashPos[b+9] = dx; leashPos[b+10] = dy; leashPos[b+11] = dz;
+      } else {
+        for (let k = 0; k < 12; k++) if (k % 3 === 1) leashPos[i * 12 + k] = -80;
+      }
+    }
+    function updateCrowd(dt, playerZ, cfg) {
+      const raining = world.rain > 0.35;
+      for (let i = 0; i < people.length; i++) {
+        const p = people[i];
+        if (!p.active) {
+          writeHuman(p, i); hideAt(umbrellas, i); continue;
+        }
+        const cadence = p.kind === "runner" ? 11.5 : p.kind === "jog" ? 9 : p.kind === "cycle" ? 7 : 5.2;
+        p.phase += dt * cadence;
+        const nearPlayer = Math.abs(p.z - playerZ) < 14;
+        if (p.sand) {
+          if (Math.random() < 0.01) p.heading += rand(-0.6, 0.6);
+          p.vx = Math.sin(p.heading) * p.speed * 0.25;
+          p.vz = Math.cos(p.heading) * p.speed * 0.2;
+        } else if (p.talking) {
+          p.vx = 0; p.vz = 0;
+        } else if (p.kind === "walk" || p.kind === "kid" || p.kind === "jog") {
+          if (nearPlayer && sim.speed > DIFF[diff].base * 1.15) {
+            let best = covers[0], bd = 1e9;
+            for (const c of covers) {
+              const d = Math.abs(c.z - p.z) + Math.abs(c.x - p.x) * 0.35;
+              if (d < bd) { bd = d; best = c; }
+            }
+            if (best && bd < 18 && !p.stroller) {
+              p.heading = Math.atan2(best.x * 0.82 - p.x, best.z - p.z);
+              p.cover = true;
+            }
+          } else if (Math.random() < 0.012 * p.wander) {
+            p.heading = pickHeading(p.kind);
+            p.cover = false;
+          }
+          const spd = p.speed * (p.cover ? 1.25 : 1);
+          p.vx = Math.sin(p.heading) * spd * 0.85;
+          p.vz = Math.cos(p.heading) * spd;
+        } else {
+          p.vx *= 0.2;
+          p.vz = (p.heading < 1.0 || p.heading > 5.0 ? 1 : -1) * p.speed;
+          if (p.heading > 1.0 && p.heading < 5.0) p.vz = -p.speed;
+          if (Math.abs(p.heading) < 0.8 || Math.abs(p.heading) > 5.5) p.vz = p.speed;
+          else p.vz = -p.speed;
+        }
+        p.x += p.vx * dt;
+        p.z += p.vz * dt;
+        if (p.sand) {
+          if (p.x >= 0) p.x = clamp(p.x, 8.6, 17.5);
+          else p.x = clamp(p.x, -22, -10.2);
+        } else if (p.x > LANE || p.x < -LANE) {
+          p.x = clamp(p.x, -LANE, LANE);
+          p.heading = Math.PI - p.heading;
+          p.vx = -p.vx;
+        }
+        const spdNow = Math.hypot(p.vx, p.vz);
+        if (spdNow > 0.05) p.facing = Math.atan2(p.vx, p.vz);
+        if (p.z > playerZ + 16 || p.z < playerZ - 140) {
+          if (p.sand) {
+            restampSandPerson(p, playerZ, cfg);
+          } else {
+            p.active = false;
+            if (p.dog >= 0) dogs[p.dog].active = false;
+          }
+        }
+        writeHuman(p, i);
+        if (p.umbrella && raining) {
+          dummy.position.set(p.x, 1.78 * p.scale, p.z);
+          dummy.rotation.set(0.08, p.facing, 0);
+          dummy.scale.setScalar(p.scale);
+          dummy.updateMatrix();
+          umbrellas.setMatrixAt(i, dummy.matrix);
+        } else hideAt(umbrellas, i);
+      }
+      for (let i = 0; i < dogs.length; i++) {
+        const d = dogs[i];
+        if (!d.active) { writeDog(d, i); continue; }
+        d.phase += dt * 10;
+        if (d.leashed && d.owner >= 0 && people[d.owner].active) {
+          const o = people[d.owner];
+          const rest = 1.15, maxL = 2.55;
+          const side = (i % 2 === 0 ? 1 : -1);
+          const tx = o.x + Math.sin(o.facing + 1.15 * side) * rest * 0.7;
+          const tz = o.z + Math.cos(o.facing + 1.15 * side) * rest * 0.7;
+          d.vx += (tx - d.x) * 2.4 * dt * 60 * 0.04 + o.vx * 0.35;
+          d.vz += (tz - d.z) * 2.4 * dt * 60 * 0.04 + o.vz * 0.35;
+          d.vx *= 0.92; d.vz *= 0.92;
+          let dist = Math.hypot(d.x - o.x, d.z - o.z);
+          if (dist > rest) {
+            const pull = (dist - rest) / (maxL - rest);
+            const nx = (d.x - o.x) / dist, nz = (d.z - o.z) / dist;
+            d.vx -= nx * pull * 8.5 * dt;
+            d.vz -= nz * pull * 8.5 * dt;
+            o.x += nx * pull * 0.55 * dt;
+            o.z += nz * pull * 0.55 * dt;
+          }
+          dist = Math.hypot(d.x - o.x, d.z - o.z);
+          if (dist > maxL) {
+            d.x = o.x + (d.x - o.x) / dist * maxL;
+            d.z = o.z + (d.z - o.z) / dist * maxL;
+          }
+          d.leashDist = Math.hypot(d.x - o.x, d.z - o.z);
+        } else {
+          if (Math.random() < 0.02) {
+            const ang = rand(-Math.PI, Math.PI);
+            const spd = rand(1.4, 3.4);
+            d.vx = Math.sin(ang) * spd;
+            d.vz = Math.cos(ang) * spd;
+          }
+        }
+        d.x += d.vx * dt;
+        d.z += d.vz * dt;
+        if (d.sand) {
+          if (d.x >= 0) d.x = clamp(d.x, 8.4, 17.8);
+          else d.x = clamp(d.x, -22.5, -10);
+        } else d.x = clamp(d.x, -LANE - 0.4, LANE + 0.4);
+        if (Math.hypot(d.vx, d.vz) > 0.05) d.facing = Math.atan2(d.vx, d.vz);
+        if (d.z > playerZ + 16 || d.z < playerZ - 140) {
+          if (d.sand) restampSandDog(d, playerZ);
+          else d.active = false;
+        }
+        writeDog(d, i);
+      }
+      torsos.instanceMatrix.needsUpdate = true;
+      heads.instanceMatrix.needsUpdate = true;
+      limbs.instanceMatrix.needsUpdate = true;
+      dogBodies.instanceMatrix.needsUpdate = true;
+      dogHeads.instanceMatrix.needsUpdate = true;
+      dogTails.instanceMatrix.needsUpdate = true;
+      umbrellas.instanceMatrix.needsUpdate = true;
+      strollers.instanceMatrix.needsUpdate = true;
+      leashGeo.attributes.position.needsUpdate = true;
+      if (limbs.instanceColor) limbs.instanceColor.needsUpdate = true;
+      if (dogBodies.instanceColor) dogBodies.instanceColor.needsUpdate = true;
+    }
+
+    const sim = {
+      phaseGame: "menu", x: 0, z: 0, lean: 0, speed: 0, distance: 0, time: 0,
+      stamina: 100, flow: 0, combo: 1, score: 0, near: 0, hits: 0,
+      line: 0, lineHold: 0, firstPerson: false,
+      nextWave: 16, nextPack: 70, invuln: 0, hitstop: 0, sprinting: false, spawnCd: 0, wasSprint: false,
+    };
+
+    function resetRun() {
+      const cfg = DIFF[diff];
+      Object.assign(sim, {
+        phaseGame: "run", x: 0, z: 0, lean: 0, speed: cfg.base, distance: 0, time: 0,
+        stamina: 100, flow: 0, combo: 1, score: 0, near: 0, hits: 0,
+        line: 0, lineHold: 0,
+        nextWave: 16, nextPack: 70 + Math.random() * 40, invuln: 0, hitstop: 0, sprinting: false, spawnCd: 0, wasSprint: false,
+      });
+      for (const c of clones) { c.alive = false; c.body.group.visible = false; }
+      for (const s of shardState) s.live = false;
+      for (const r of ringState) r.live = false;
+      for (const d of dogs) d.active = false;
+      populate(0, cfg);
+    }
+
+    function finish() {
+      sim.phaseGame = "finish";
+      const grade = sim.hits === 0 && sim.near >= 12 ? "S"
+        : sim.hits <= 1 && sim.near >= 6 ? "A"
+        : sim.hits <= 3 ? "B" : "C";
+      const blurb = grade === "S" ? "Clean line. The boulevard opened for you."
+        : grade === "A" ? "Strong run. A couple of brushes, still fluent."
+        : grade === "B" ? "You finished. The crowd still owns a few meters."
+        : "Made it. Next time, cut closer and hit fewer bodies.";
+      document.getElementById("grade").textContent = grade;
+      document.getElementById("finish-blurb").textContent = blurb;
+      document.getElementById("fin-score").textContent = `${Math.floor(sim.score)}`;
+      document.getElementById("fin-time").textContent = fmtTime(sim.time);
+      document.getElementById("fin-near").textContent = `${sim.near}`;
+      document.getElementById("fin-hits").textContent = `${sim.hits}`;
+      document.getElementById("finish").hidden = false;
+      try {
+        const prev = JSON.parse(localStorage.getItem(BEST_KEY) || "null");
+        if (!prev || sim.score > prev.score) {
+          localStorage.setItem(BEST_KEY, JSON.stringify({ score: sim.score, grade, time: sim.time, difficulty: diff, nearMisses: sim.near, hits: sim.hits }));
+        }
+      } catch {}
+    }
+
+    function fmtTime(t) {
+      const m = Math.floor(t / 60), s = t % 60;
+      return `${m}:${s.toFixed(1).padStart(4, "0")}`;
+    }
+    function flash(text) {
+      const el = document.getElementById("toast");
+      el.textContent = text; el.style.opacity = "1";
+      clearTimeout(flash._t); flash._t = setTimeout(() => { el.style.opacity = "0"; }, 420);
+    }
+
+    let audioCtx = null;
+    function beep(freq, dur, gain) {
+      if (muted) return;
+      audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.frequency.value = freq; o.type = "sine";
+      g.gain.value = gain; o.connect(g); g.connect(audioCtx.destination);
+      o.start(); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+      o.stop(audioCtx.currentTime + dur);
+    }
+
+    document.getElementById("start").onclick = () => {
+      document.getElementById("panel").hidden = true;
+      resetRun();
+      beep(440, 0.08, 0.04);
+    };
+    document.getElementById("again").onclick = () => {
+      document.getElementById("finish").hidden = true;
+      resetRun();
+    };
+    document.getElementById("menu").onclick = () => {
+      document.getElementById("finish").hidden = true;
+      document.getElementById("panel").hidden = false;
+      sim.phaseGame = "menu";
+    };
+    document.getElementById("pause-btn").onclick = () => {
+      if (sim.phaseGame === "run") sim.phaseGame = "pause";
+      else if (sim.phaseGame === "pause") sim.phaseGame = "run";
+    };
+    function setFirstPerson(on) {
+      sim.firstPerson = on;
+      player.group.traverse((obj) => {
+        if (obj.name === "fp-hide") obj.visible = !on;
+      });
+      camera.near = on ? 0.08 : 0.1;
+      camera.updateProjectionMatrix();
+      const vb = document.getElementById("view-btn");
+      if (vb) vb.textContent = on ? "3rd" : "1st";
+      document.getElementById("view-chase")?.classList.toggle("on", !on);
+      document.getElementById("view-fp")?.classList.toggle("on", on);
+    }
+    document.getElementById("view-btn").onclick = () => setFirstPerson(!sim.firstPerson);
+    document.getElementById("view-chase").onclick = () => setFirstPerson(false);
+    document.getElementById("view-fp").onclick = () => setFirstPerson(true);
+    document.getElementById("mute").onclick = () => {
+      muted = !muted;
+      document.getElementById("mute").textContent = muted ? "Sound off" : "Sound on";
+    };
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Escape" && sim.phaseGame === "run") sim.phaseGame = "pause";
+      else if (e.code === "Escape" && sim.phaseGame === "pause") sim.phaseGame = "run";
+      else if (e.code === "KeyV" && !e.repeat) setFirstPerson(!sim.firstPerson);
+    });
+
+    const look = new THREE.Vector3();
+    let acc = 0, last = performance.now(), menuT = 0, elapsed = 0;
+    const STEP = 1 / 60;
+
+    function step(dt) {
+      const cfg = DIFF[diff];
+      if (sim.phaseGame !== "run") return;
+      if (sim.hitstop > 0) { sim.hitstop -= dt; updateClones(dt, elapsed); return; }
+
+      const left = keys.has("KeyA") || keys.has("ArrowLeft");
+      const right = keys.has("KeyD") || keys.has("ArrowRight");
+      const sprintKey = keys.has("ShiftLeft") || keys.has("ShiftRight") || keys.has("KeyW") || keys.has("Space");
+      // World +X is camera-right. Positive steer must mean "go right".
+      // (left - right) only works if you also do x -= steer. Mixing the two flips A/D.
+      const axis = (right ? 1 : 0) - (left ? 1 : 0) + touchSteer;
+      const steer = clamp(axis, -1, 1);
+      const wantSprint = (sprintKey || touchSprint) && sim.stamina > 1;
+      if (wantSprint) sim.stamina = Math.max(0, sim.stamina - cfg.drain * dt);
+      else sim.stamina = Math.min(100, sim.stamina + cfg.regen * dt);
+
+      sim.invuln = Math.max(0, sim.invuln - dt);
+      sim.spawnCd = Math.max(0, sim.spawnCd - dt);
+      const target = cfg.base * (wantSprint ? 1.52 : 1) * (sim.invuln > 0 ? 0.62 : 1);
+      sim.speed = damp(sim.speed, target, 6.5, dt);
+      sim.z -= sim.speed * dt;
+      sim.distance = Math.min(COURSE, -sim.z);
+      sim.x = clamp(sim.x + steer * cfg.lateral * dt, -LANE, LANE);
+      sim.lean = damp(sim.lean, steer * 0.42, 14, dt);
+      sim.time += dt;
+      sim.phase = (sim.phase || 0) + dt * (wantSprint ? 16 : 12.5);
+
+      player.group.position.set(sim.x, 0, sim.z);
+      player.group.rotation.y = Math.PI + sim.lean;
+      player.group.rotation.z = sim.lean * 0.28;
+      player.update(sim.phase, wantSprint);
+
+      if (wantSprint && (!sim.wasSprint || sim.spawnCd <= 0)) {
+        spawnClone(sim.x, sim.z, sim.lean, sim.phase);
+        sim.spawnCd = 0.32;
+      }
+      sim.wasSprint = wantSprint;
+
+      if (sim.distance >= sim.nextWave) {
+        spawnWave(sim.z, cfg);
+        spawnSandBand(sim.z, cfg);
+        if (Math.random() < 0.35) spawnTalkers(sim.z, cfg);
+        sim.nextWave += cfg.every + Math.random() * 6;
+      }
+      if (sim.distance >= sim.nextPack) {
+        spawnRunnerPack(sim.z, cfg);
+        sim.nextPack += 100 + Math.random() * 40;
+      }
+      updateCrowd(dt, sim.z, cfg);
+      updateClones(dt, elapsed);
+
+      const bodies = people.filter((p) => p.active && !p.sand).concat(dogs.filter((d) => d.active && !d.sand));
+      for (const p of bodies) {
+        const dz = p.z - sim.z, dx = p.x - sim.x;
+        if (dz < -1.4 || dz > 2.4) continue;
+        const d = Math.hypot(dx, dz * 0.6);
+        const hitR = p.radius + 0.38;
+        const gap = d - hitR;
+        if (!p.hit && sim.invuln <= 0 && gap < 0) {
+          p.hit = true; sim.hits++; sim.combo = 1; sim.flow = 0;
+          sim.invuln = 0.7; sim.hitstop = 0.08; sim.score = Math.max(0, sim.score - 40);
+          spawnClone(sim.x, sim.z, sim.lean, sim.phase);
+          flash("CONTACT"); beep(140, 0.12, 0.06);
+        } else if (!p.near && !p.hit && !p.skim && dz > -0.2 && dz < 1.6 && Math.abs(dx) < 1.35) {
+          if (gap > 0.82) {
+            p.skim = true;
+            sim.flow = Math.max(0, sim.flow - 5);
+          } else if (gap >= 0) {
+            p.near = true; sim.near++;
+            const quality = clamp(1 - gap / 0.82, 0, 1);
+            const add = 10 + quality * 22;
+            sim.flow = Math.min(100, sim.flow + add);
+            sim.combo = Math.min(6, sim.combo + 0.18 + quality * 0.28);
+            sim.score += (28 + quality * 24) * sim.combo;
+            flash(quality > 0.72 ? "CLOSE PASS" : "THREAD");
+            beep(680 + quality * 140, 0.07, 0.035);
+          }
+        }
+      }
+      for (const c of clones) {
+        if (!c.alive || c.gated || c.age < 0.16) continue;
+        const dx = c.x - sim.x, dz = c.z - sim.z;
+        if (Math.abs(dx) < 0.48 && Math.abs(dz) < 0.75) {
+          c.gated = true;
+          sim.flow = Math.min(100, sim.flow + 8);
+          sim.score += 14 * sim.combo;
+          flash("ECHO");
+        }
+      }
+
+      for (const d of dogs) {
+        if (!d.active || !d.leashed || d.owner < 0 || d.thread) continue;
+        const o = people[d.owner];
+        if (!o || !o.active) continue;
+        const abx = d.x - o.x, abz = d.z - o.z;
+        const apx = sim.x - o.x, apz = sim.z - o.z;
+        const ab2 = abx * abx + abz * abz;
+        if (ab2 < 0.8) continue;
+        const tOn = clamp((apx * abx + apz * abz) / ab2, 0, 1);
+        const cx = o.x + abx * tOn, cz = o.z + abz * tOn;
+        const dist = Math.hypot(sim.x - cx, (sim.z - cz) * 0.7);
+        const along = Math.hypot(sim.z - o.z, sim.z - d.z);
+        if (tOn > 0.18 && tOn < 0.82 && dist < 0.42 && Math.abs(sim.z - cz) < 1.2) {
+          d.thread = true;
+          sim.near++; sim.flow = Math.min(100, sim.flow + 34);
+          sim.combo = Math.min(6, sim.combo + 0.4);
+          sim.score += 70 * sim.combo;
+          flash("LEASH GAP"); beep(880, 0.08, 0.04);
+        }
+      }
+
+      let leftClear = 1, rightClear = 1, echoHold = -1;
+      for (const p of bodies) {
+        const dz = p.z - sim.z, dx = p.x - sim.x;
+        if (dz < 0.2 || dz > 4.2) continue;
+        const gap = Math.abs(dx) - (p.radius + 0.38);
+        const signed = clamp(gap / 0.9, -1.2, 1.2);
+        if (dx < -0.08) leftClear = Math.min(leftClear, signed);
+        else if (dx > 0.08) rightClear = Math.min(rightClear, signed);
+      }
+      for (const c of clones) {
+        if (!c.alive) continue;
+        const behind = c.z - sim.z;
+        if (behind > 0.4 && behind < 2.4 && Math.abs(c.x - sim.x) < 0.5) echoHold = 1;
+      }
+      let nextLine = lineCore(leftClear, rightClear, echoHold);
+      if (sim.invuln > 0.55) nextLine = -1;
+      else if (sim.flow >= 46 && nextLine >= 0) nextLine = 1;
+
+      const cost = transitionCost(sim.line, nextLine, world.rain);
+      if (nextLine === sim.line) {
+        sim.lineHold += dt;
+        if (nextLine === 1) {
+          sim.flow = Math.min(100, sim.flow + (sim.lineHold > 1.4 ? 4.2 : 1.6) * dt);
+          if (sim.flow >= 46) sim.stamina = Math.min(100, sim.stamina + cfg.regen * 0.28 * dt);
+        } else if (nextLine === 0) {
+          sim.flow = Math.max(0, sim.flow - TERN.stay * 6 * dt);
+        } else {
+          sim.flow = Math.max(0, sim.flow - TERN.stay * 14 * dt);
+        }
+      } else {
+        sim.lineHold = 0;
+        if (nextLine < sim.line) sim.flow = Math.max(0, sim.flow - cost * 7.5);
+        else sim.flow = Math.min(100, sim.flow + Math.max(0.4, 6.2 - cost) * 2.4);
+        sim.line = nextLine;
+      }
+      if (sim.flow < 16) sim.combo = Math.max(1, sim.combo - dt * 0.12);
+
+      sim.score += dt * 6 * sim.combo;
+      if (sim.distance >= COURSE) finish();
+    }
+
+    function sampleWorld(distance, dt) {
+      const t = distance / COURSE;
+      let rainT = 0, wetT = 0.22, dustT = 0.32, fogT = 0.011, windT = 0.4, sprayT = 0.28, hazeT = 0.35, name = "GOLDEN";
+      if (t < 0.22) {
+        name = "GOLDEN"; wetT = 0.18; dustT = 0.38; fogT = 0.010; windT = 0.35; sprayT = 0.2;
+      } else if (t < 0.48) {
+        name = "SEA SPRAY"; wetT = 0.42; dustT = 0.18; fogT = 0.013; windT = 0.62; sprayT = 0.7;
+      } else if (t < 0.72) {
+        name = "RAIN"; rainT = 0.75; wetT = 0.82; dustT = 0.08; fogT = 0.018; windT = 0.85; sprayT = 0.45; hazeT = 0.7;
+      } else {
+        name = "CLEAR HAZE"; rainT = 0.05; wetT = 0.48; dustT = 0.22; fogT = 0.009; windT = 0.4; sprayT = 0.3; hazeT = 0.55;
+      }
+      world.rain = damp(world.rain, rainT, 1.6, dt);
+      world.wetness = damp(world.wetness, wetT, 1.2, dt);
+      world.dust = damp(world.dust, dustT, 1.4, dt);
+      world.fogDensity = damp(world.fogDensity, fogT, 1.5, dt);
+      world.wind = damp(world.wind, windT, 1.8, dt);
+      world.spray = damp(world.spray, sprayT, 1.5, dt);
+      world.haze = damp(world.haze, hazeT, 1.3, dt);
+      world.phaseName = name;
+      world.exposure = 1.02 + world.haze * 0.12 - world.rain * 0.18;
+      worldUniforms.wetness.value = world.wetness;
+      worldUniforms.wind.value = world.wind;
+      worldUniforms.rain.value = world.rain;
+      worldUniforms.time.value = elapsed;
+    }
+
+    function synthesizeWorld(playerZ) {
+      const rainGray = 0.22 * world.rain;
+      skyColor.setRGB(0.83 - rainGray, 0.68 - rainGray * 0.7, 0.51 + world.haze * 0.08 - rainGray);
+      scene.fog.color.copy(skyColor);
+      const read = (sim.phaseGame === "run" ? sim.flow : 35) / 100;
+      scene.fog.density = world.fogDensity * (1.16 - read * 0.28);
+      scene.background.copy(skyColor);
+      renderer.toneMappingExposure = world.exposure;
+      if (hemi) {
+        hemi.color.setRGB(1.0 - world.rain * 0.25, 0.90 - world.rain * 0.15, 0.77);
+        hemi.intensity = 0.9 - world.rain * 0.25 + world.haze * 0.08;
+      }
+      sun.intensity = 1.2 - world.rain * 0.55 + world.haze * 0.1;
+      sun.color.setRGB(1.0, 0.83 - world.rain * 0.15, 0.63 - world.rain * 0.2);
+      walkMat.roughness = 0.88 - world.wetness * 0.55;
+      walkMat.metalness = 0.04 + world.wetness * 0.08;
+      dustField.mat.opacity = 0.08 + world.dust * 0.42;
+      sprayField.mat.opacity = 0.05 + world.spray * 0.38 + world.rain * 0.2;
+      const driftX = world.wind * 1.8;
+      const posD = dustField.pos, posS = sprayField.pos;
+      for (let i = 0; i < dustField.count; i++) {
+        let x = posD[i * 3] + driftX * 0.016;
+        let y = posD[i * 3 + 1] + Math.sin(elapsed * 0.7 + i) * 0.002;
+        let z = posD[i * 3 + 2] + 0.35;
+        if (z > playerZ + 16 || x > 16 || x < -20) {
+          x = rand(-16, 12); y = rand(0.15, 4.6); z = playerZ - rand(8, 48);
+        }
+        posD[i * 3] = x; posD[i * 3 + 1] = y; posD[i * 3 + 2] = z;
+      }
+      dustField.geo.attributes.position.needsUpdate = true;
+      for (let i = 0; i < sprayField.count; i++) {
+        let x = posS[i * 3] - 0.04 - world.spray * 0.03;
+        let y = posS[i * 3 + 1] + Math.sin(elapsed * 2.0 + i) * 0.01;
+        let z = posS[i * 3 + 2] + 0.5;
+        if (z > playerZ + 14 || x > -4 || y > 5) {
+          x = rand(-22, -8); y = rand(0.05, 2.4); z = playerZ - rand(4, 36);
+        }
+        posS[i * 3] = x; posS[i * 3 + 1] = y; posS[i * 3 + 2] = z;
+      }
+      sprayField.geo.attributes.position.needsUpdate = true;
+    }
+
+    function paintHud() {
+      const left = Math.max(0, COURSE - sim.distance);
+      document.getElementById("dist").textContent = `${Math.floor(left)}m`;
+      document.getElementById("dist-fill").style.width = `${(sim.distance / COURSE) * 100}%`;
+      document.getElementById("score").textContent = `${Math.floor(sim.score)}`;
+      const band = sim.flow >= 75 ? "ZONE" : sim.flow >= 46 ? "LOCKED" : sim.flow >= 16 ? "OPEN" : "FLAT";
+      const lineMark = sim.line > 0 ? "+1" : sim.line < 0 ? "−1" : "0";
+      document.getElementById("combo").textContent = `x${sim.combo.toFixed(1)}`;
+      document.getElementById("time").textContent = fmtTime(sim.time);
+      document.getElementById("stats").textContent = `${sim.near} close · ${sim.hits} contact`;
+      document.getElementById("stam").style.width = `${sim.stamina}%`;
+      document.getElementById("stam-n").textContent = `${Math.round(sim.stamina)}%`;
+      document.getElementById("flow").style.width = `${sim.flow}%`;
+      document.getElementById("flow-n").textContent = band;
+      document.getElementById("pause-btn").textContent = sim.phaseGame === "pause" ? "▶" : "II";
+      const chip = document.getElementById("world-chip");
+      if (chip) chip.textContent = `${world.phaseName} · ${lineMark} · ${band} · WET ${world.wetness.toFixed(2)}`;
+    }
+
+    function loop(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      elapsed += dt;
+      waterMat.uniforms.uTime.value = elapsed;
+      sampleWorld(sim.phaseGame === "menu" ? 40 : sim.distance, dt);
+      synthesizeWorld(sim.z);
+      if (sim.phaseGame === "menu") {
+        menuT += dt;
+        sim.z = -18 - menuT * 2.4;
+        camera.position.set(0, 4.2, sim.z + 10);
+        look.set(0, 1.1, sim.z - 8); camera.lookAt(look);
+        if (menuT % 2.4 < dt + 0.02) {
+          spawnWave(sim.z, DIFF.normal);
+          spawnSandBand(sim.z, DIFF.normal);
+        }
+        updateCrowd(dt, sim.z, DIFF.normal);
+        updateClones(dt, elapsed);
+      } else {
+        acc += dt;
+        while (acc >= STEP) { step(STEP); acc -= STEP; }
+        if (sim.phaseGame === "pause") updateClones(0, elapsed);
+        if (sim.firstPerson) {
+          const sprinting = sim.speed > DIFF[diff].base * 1.2;
+          const bob = Math.sin(sim.phase || 0) * (sprinting ? 0.028 : 0.016);
+          camera.fov += ((sprinting ? 82 : 72) - camera.fov) * 0.08;
+          camera.updateProjectionMatrix();
+          camera.position.set(sim.x, 1.54 + bob, sim.z + 0.16);
+          look.set(sim.x + sim.lean * 0.55, 1.48, sim.z - 12);
+          camera.lookAt(look);
+          camera.rotateZ(sim.lean * 0.22);
+          player.group.traverse((obj) => { if (obj.name === "fp-hide") obj.visible = false; });
+        } else {
+          const fov = 54 + (sim.speed > DIFF[diff].base * 1.2 ? 6 : 0) + (sim.flow >= 75 ? 5 : sim.flow >= 46 ? 2 : 0);
+          camera.fov += (fov - camera.fov) * 0.08; camera.updateProjectionMatrix();
+          camera.position.set(sim.x * 0.15, 3.4, sim.z + 8.6);
+          look.set(sim.x, 1.15, sim.z - 7.5); camera.lookAt(look);
+          player.group.traverse((obj) => { if (obj.name === "fp-hide") obj.visible = true; });
+        }
+      }
+      sun.position.set(sim.x - 18, 28, sim.z + 12);
+      paintHud();
+      renderer.render(scene, camera);
+      requestAnimationFrame(loop);
+    }
+    populate(-18, DIFF.normal);
+    requestAnimationFrame(loop);
+
+    addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
