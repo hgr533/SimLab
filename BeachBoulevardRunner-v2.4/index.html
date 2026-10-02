@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#141b22">
+<title>Beach Boulevard Runner v2.4</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="hud">
+    <div class="tl">
+      <div class="label">SCORE</div><div id="score" class="big">0</div>
+      <div id="dist" class="small">0 m</div>
+      <div id="heat" class="heat h1">HEAT 1  x1.0</div>
+    </div>
+    <div class="tc">
+      <div id="trit" class="trit coast"><span id="tritTxt">0 COAST</span></div>
+      <canvas id="hist" width="180" height="32"></canvas>
+    </div>
+    <div class="tr">
+      <div id="weather" class="wchip">GOLDEN / DUST</div>
+      <div id="wsub" class="small">late afternoon</div>
+    </div>
+    <div class="bl">
+      <div class="meter"><span class="mlabel">FLOW</span><div class="bar"><div id="flowBar" class="fill flow"></div></div><span id="flowTxt" class="mval">0%</span></div>
+      <div class="meter" id="comboBox"><span class="mlabel">COMBO</span><span id="combo" class="combo">x1</span></div>
+      <div class="meter"><span class="mlabel">STAMINA</span><div class="bar"><div id="stamBar" class="fill stam"></div></div><span id="stamTxt" class="mval">100%</span></div>
+    </div>
+    <div id="flash"></div>
+    <div id="pops"></div>
+    <div id="toast"></div>
+  </div>
+  <button id="gear" title="Settings">SET <span id="qchip">HIGH</span></button>
+  <button id="fs" title="Fullscreen">FULLSCREEN</button>
+  <pre id="debug"></pre>
+
+  <div id="title" class="overlay">
+    <div class="card">
+      <div class="kicker">TEL AVIV PROMENADE AT SUNSET</div>
+      <h1>BEACH BOULEVARD<br><span>RUNNER</span></h1>
+      <p class="tag">Thread the crowd. Hold the line. Keep running.</p>
+      <div class="controls">
+        <div class="kb"><b>Arrows / A D</b> change lane</div>
+        <div class="kb"><b>Space</b> jump (dogs, planters)</div>
+        <div class="kb"><b>Shift / Down</b> slide (banners)</div>
+        <div class="kb"><b>Click</b> dash through people</div>
+        <div class="kb"><b>Up / W</b> sprint (stamina)</div>
+        <div class="kb"><b>Gamepad</b> stick, A jump, B slide, X dash, RB sprint</div>
+        <div class="tch"><b>Swipe left / right</b> change lane</div>
+        <div class="tch"><b>Swipe up</b> jump (dogs, planters)  <b>Swipe down</b> slide (banners)</div>
+        <div class="tch"><b>Tap</b> dash through people</div>
+        <div class="kb"><b>Q</b> quality  <b>F3</b> stats  <b>N</b> next weather  <b>P</b> pause  <b>M</b> sound</div>
+        <div><b>Grab</b> violet flow orbs (all 5 = ORB TRAIL), gold air orbs over planters, teal drinks refill stamina. <b>Jump a leash</b> for a LEASH HOP. Every 450 m the HEAT rises.</div>
+      </div>
+      <div class="charpick">RUNNER <button data-char="female">FEMALE</button><button data-char="male">MALE</button></div>
+      <div class="go"><span class="kb">Press SPACE, click or </span>tap to run</div>
+      <div id="best" class="small"></div>
+    </div>
+  </div>
+  <div id="over" class="overlay">
+    <div class="card results">
+      <div class="kicker">RUN RESULTS</div>
+      <h1><span>COLLAPSED</span></h1>
+      <div class="gradeRow"><div id="grade" class="grade">B</div><div><div id="gradeLabel" class="tag"></div><div id="newBest" class="newbest">NEW PERSONAL BEST</div></div></div>
+      <div id="statGrid" class="statgrid"></div>
+      <div id="career" class="small"></div>
+      <div class="row"><button id="again">RUN AGAIN</button></div>
+      <div class="go"><span class="kb">SPACE / click / </span>tap to run again</div>
+    </div>
+  </div>
+  <div id="pause" class="overlay"><div class="card"><h1><span>PAUSED</span></h1><div class="go">P / Esc / click to resume</div></div></div>
+  <div id="settings" class="overlay">
+    <div class="card">
+      <h2>Quality</h2>
+      <div class="presets">
+        <button data-preset="LOW">LOW<small>old GPUs: 0.65x res, light crowd</small></button>
+        <button data-preset="MEDIUM">MEDIUM<small>1x res, more crowd, wet sheen</small></button>
+        <button data-preset="HIGH">HIGH<small>up to 2x res, MSAA, rich props</small></button>
+        <button data-preset="ULTRA">ULTRA<small>up to 3x res, max crowd and range</small></button>
+      </div>
+      <label class="chk"><input type="checkbox" id="adaptive"> Adaptive safety net (drop one preset if FPS stays under 45)</label>
+      <h2>Sound and feel</h2>
+      <div class="opts">
+        <label class="chk"><input type="checkbox" id="optSound"> Sound effects (M)</label>
+        <label class="chk"><input type="checkbox" id="optMusic"> Music (the song)</label>
+        <div class="vols">
+          <label class="vol"><span>Master</span><input type="range" id="volMaster" min="0" max="100" step="1" value="100"><b id="volMasterTxt">100</b></label>
+          <label class="vol"><span>Music</span><input type="range" id="volMusic" min="0" max="100" step="1" value="100"><b id="volMusicTxt">100</b></label>
+          <label class="vol"><span>Ambience</span><input type="range" id="volAmb" min="0" max="100" step="1" value="100"><b id="volAmbTxt">100</b></label>
+          <label class="vol"><span>Effects</span><input type="range" id="volSfx" min="0" max="100" step="1" value="100"><b id="volSfxTxt">100</b></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="optHaptics"> Vibration on near miss, pickup and contact (phones)</label>
+      </div>
+      <h2>Runner</h2>
+      <div class="presets char2">
+        <button data-char="female">FEMALE<small>ponytail, white top</small></button>
+        <button data-char="male">MALE<small>short hair, blue tee</small></button>
+      </div>
+      <div class="small">GPU: <span id="gpuName"></span></div>
+      <div class="row"><button id="redetect">Auto-detect</button><button id="closeSettings">Close</button></div>
+    </div>
+  </div>
+  <div id="nogl" class="overlay"><div class="card"><h2>The game did not start</h2>
+    <p class="tag">This browser could not start WebGL 2, or the scripts were blocked.<br>
+    Start the game with start-game.cmd (it runs a small local web server).<br>
+    If it still stays on this screen, use start-game-mimefix.cmd instead.</p></div></div>
+</div>
+<script>
+  // Fallback notice if the ES module never boots (file:// or wrong MIME type).
+  setTimeout(function () { if (!window.__bbrBooted) document.getElementById('nogl').style.display = 'flex'; }, 6000);
+  window.addEventListener('error', function (e) { if (!window.__bbrBooted) { var n = document.getElementById('nogl'); n.style.display = 'flex'; } });
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
