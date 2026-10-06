@@ -1,0 +1,596 @@
+// Cheap unlit shaders. Light is baked into vertex attributes; weather rescales it via shared uniforms.
+// No discard, except the v2.5 LOD cross-fade dither (only while an instance switches tier) and the v2.5.23 1P near fade. Fog is three.js linear fog (doubles as LOD2 distance fade).
+import * as THREE from '../vendor/three.module.js';
+import { SUN_DIR } from './config.js';
+
+export const U = {
+  uAmb: { value: new THREE.Color(0.5, 0.4, 0.45) },
+  uSun: { value: new THREE.Color(0.85, 0.6, 0.36) },
+  uWet: { value: 0 },
+  uSkyRefl: { value: new THREE.Color(0.9, 0.6, 0.4) },
+  uSunRefl: { value: new THREE.Color(1, 0.7, 0.4) },
+  uWindow: { value: new THREE.Color(1, 0.7, 0.4) },
+  uTime: { value: 0 },
+  uSunDir: { value: new THREE.Vector3(...SUN_DIR).normalize() },
+  uEchoColor: { value: new THREE.Color(0.45, 0.35, 1.0) },
+  // v2.2 wind: x base bend, y gust bend, z flutter, w weather wind amount (0..1)
+  uWind: { value: new THREE.Vector4(0.2, 0.5, 0.4, 0.2) },
+  // v2.5.5: sea swell amount (0 when the preset has a flat sea) so bathers / surfers ride the waves
+  uSeaChop: { value: 0 },
+  // v2.5.18: establishment lights level (0 day .. 1 rain / dusk / overcast), blended with the weather
+  uLights: { value: 0 },
+  // v2.5.23: 1st-person near fade. xyz = camera position, w = radius (0 = off, 3rd person). Geometry closer
+  // than ~0.55 w is discarded, between 0.55 w and w it dithers out, so the 1P lens never shows the insides
+  // of a passing pedestrian, dog or prop. One uniform + one distance per fragment, no extra pass.
+  uNear: { value: new THREE.Vector4(0, 0, 0, 0) },
+};
+
+// GLSL copy of config.windGust() / gustFlow(): gust wave travelling towards -z at 18 m/s.
+// v2.5.4: Gaussian gust bump, plus the source (leading edge) / sink (tail) flow.
+export const GUST_GLSL = `
+float gustD(float z, float t) { float u = z + t * 18.0 - 17.4922 + 34.9858; return u - floor(u / 69.9716) * 69.9716 - 34.9858; }
+float windGust(float z, float t) { float d = gustD(z, t); float u = z + t * 18.0; return exp(-d * d / 82.81) * (0.55 + 0.45 * sin(u * 0.031 + 1.7)); }
+float gustFlow(float z, float t) { float x = gustD(z, t) / 9.1; float u = z + t * 18.0; return -x * exp(-x * x) * 2.3316 * (0.55 + 0.45 * sin(u * 0.031 + 1.7)); }
+`;
+
+function fogUniforms() {
+  return {
+    fogColor: { value: new THREE.Color() }, fogNear: { value: 1 }, fogFar: { value: 1000 }, fogDensity: { value: 0 },
+  };
+}
+
+const RIG_GLSL = `
+attribute vec3 aRig;
+attribute vec4 aAnim;
+vec3 rotXp(vec3 p, float py, float pz, float a) {
+  float c = cos(a), s = sin(a); float y = p.y - py, z = p.z - pz;
+  return vec3(p.x, py + y * c - z * s, pz + y * s + z * c);
+}
+vec3 rotYp(vec3 p, float px, float pz, float a) {
+  float c = cos(a), s = sin(a); float x = p.x - px, z = p.z - pz;
+  return vec3(px + x * c + z * s, p.y, pz - x * s + z * c);
+}
+#ifdef NEARVAR
+attribute vec4 aVar; // v2.5 near-tier variety: x hat, y long hair, z skin tone, w spare
+#endif
+vec3 rigPose(vec3 p) {
+  float limb = aRig.x; float al = abs(limb);
+#ifdef NEARVAR
+  // 6 = hat, 7 = long hair, 8 = short hair: unselected parts collapse into the head (zero area)
+  if (limb > 5.5) {
+    bool show = limb < 6.5 ? aVar.x > 0.5 : (limb < 7.5 ? aVar.y > 0.5 : aVar.y < 0.5);
+    if (!show) return vec3(0.0, 1.5, 0.0);
+    limb = 0.0; al = 0.0;
+  }
+#endif
+  if (limb > 4.5) return p;
+  float ph = aAnim.x; float amp = aAnim.y; float sl = max(aAnim.z, 0.0); float cr = max(-aAnim.z, 0.0); float air = aAnim.w; // v2.5.21: negative z = crouch (pickup)
+#ifdef DECORWALK
+  ph += uTime * 6.5; // decor walkers animate on the GPU clock, no per-frame attribute uploads
+#endif
+  if (al > 0.5 && al < 1.5) {
+    float side = sign(limb);
+    float sw = sin(ph) * side;
+    float knee = aRig.z;
+    if (knee > 0.0 && p.y < knee) {
+      float kb = amp * (0.35 + 1.1 * max(0.0, -cos(ph) * side)) + air * 1.2 + cr * 2.3;
+      p = rotXp(p, knee, 0.0, -kb);
+    }
+    p = rotXp(p, aRig.y, 0.0, sw * amp + air * 0.7 + sl * 1.1 + cr * (knee > 0.0 ? 1.45 : 1.1));
+  } else if (al > 1.5 && al < 2.5) {
+    float side = sign(limb);
+    p = rotXp(p, aRig.y, 0.0, -sin(ph) * side * amp * 0.95 - sl * 0.6 + cr * 0.9);
+  } else if (al > 3.5 && al < 4.5) {
+    p = rotYp(p, 0.0, aRig.z, sin(ph * 2.0) * 0.7);
+  }
+  if (sl > 0.001) { p = rotXp(p, 0.12, 0.0, sl * 1.05); }
+  if (cr > 0.001) { if (al < 0.5 || (al > 1.5 && al < 2.5)) p = rotXp(p, 0.88, 0.0, -cr * 0.55); p.y -= cr * 0.5; }
+  return p;
+}
+`;
+
+const BAKED_VERT = `
+attribute vec4 aLight;
+#if defined(SWAY) || defined(BOB) || defined(DECORWALK)
+uniform float uTime;
+#endif
+#if defined(SWAY) || defined(BOB)
+attribute float aSway;
+uniform vec4 uWind;
+${GUST_GLSL}
+#endif
+varying vec3 vCol;
+varying vec4 vLight;
+varying vec3 vWorld;
+varying vec2 vUv;
+#ifdef RIG
+${RIG_GLSL}
+#endif
+#ifdef TINT
+attribute float aTint;
+#endif
+#ifdef LODFADE
+attribute float aFade;
+varying float vFade;
+#endif
+#ifdef ECHO
+attribute vec2 aEcho;
+varying vec2 vEcho;
+varying float vY;
+#endif
+#include <fog_pars_vertex>
+#ifdef BOB
+uniform float uSeaChop;
+// v2.5.5 pivots for the bike-lane mix and the bathers (rotate about an axis through a local point)
+vec3 bobRX(vec3 p, float py, float pz, float a) { float c = cos(a), s = sin(a); float y = p.y - py, z = p.z - pz; return vec3(p.x, py + y * c - z * s, pz + y * s + z * c); }
+vec3 bobRZ(vec3 p, float px, float py, float a) { float c = cos(a), s = sin(a); float x = p.x - px, y = p.y - py; return vec3(px + x * c - y * s, py + x * s + y * c, p.z); }
+#endif
+void main() {
+  vec3 p = position;
+#ifdef RIG
+  p = rigPose(p);
+#endif
+#if defined(BOB) && defined(USE_INSTANCING)
+  // v2.2 decor idle motion (local space): 1 = breathing bob, 2 / 2.5 = matkot paddle arms, 3 = ball
+  {
+    float io = instanceMatrix[3].x * 1.37 + instanceMatrix[3].z * 0.71;
+    if (aSway > 0.5 && aSway < 1.5) {
+      p.y += sin(uTime * 1.9 + io) * 0.012;
+      // v2.5.8 optional extra players (1.1 / 1.2 / 1.3): shown when the instance scale encodes enough of them
+      if (aSway > 1.05) { float sy = length(instanceMatrix[1].xyz); float cnt = floor((sy - 1.0) * 100.0 + 0.5); if (floor((aSway - 1.0) * 10.0 + 0.5) > cnt) p = vec3(0.0, -3.0, 0.0); }
+    }
+    else if (aSway > 6.9) {
+      // v2.5.5: 7 / 7.5 blade legs (side push + glide), 8 / 8.5 blade arms, 9 skate push leg,
+      // 10 / 10.5 surfer walking legs, 11 surfer free arm, 12 / 12.5 wader arms, 13 / 13.5 crawl arms,
+      // 14 wave surfer (roll, bob, ride along the swell), 15 bather body. Riders move in z, so their phase uses x only.
+      float io2 = instanceMatrix[3].x * 9.7;
+      if (aSway < 8.75) {
+        float sd = (aSway < 7.25 || (aSway > 7.75 && aSway < 8.25)) ? -1.0 : 1.0;
+        float ph = uTime * 3.1 + io2;
+        if (aSway < 7.75) {
+          float pu = max(0.0, sin(ph + (sd < 0.0 ? 0.0 : 3.14159)));
+          p = bobRZ(p, sd * 0.12, 0.86, sd * 0.36 * pu);
+          p = bobRX(p, 0.86, 0.0, -0.22 * pu);
+        } else p = bobRX(p, 1.31, -0.18, 0.55 * sin(ph + (sd < 0.0 ? 3.14159 : 0.0)));
+      } else if (aSway < 9.5) {
+        float gl = smoothstep(0.1, 0.5, sin(uTime * 0.55 + io2));
+        p = bobRX(p, 0.86, 0.04, (1.0 - gl) * 0.5 * sin(uTime * 4.4 + io2));
+        p.y += gl * 0.1 * clamp(1.0 - p.y / 0.86, 0.0, 1.0);
+      } else if (aSway < 10.75) {
+        p = bobRX(p, 0.86, 0.0, 0.42 * (aSway < 10.25 ? -1.0 : 1.0) * sin(uTime * 5.6 + io2));
+      } else if (aSway < 11.5) {
+        p = bobRX(p, 1.33, 0.0, -0.35 * sin(uTime * 5.6 + io2));
+      } else if (aSway < 12.75) {
+        float sd = aSway < 12.25 ? -1.0 : 1.0;
+        p = bobRZ(p, sd * 0.21, 0.36, sd * 0.25 * sin(uTime * 1.3 + io));
+        p.y += sin(uTime * 1.6 + io) * 0.03;
+      } else if (aSway < 13.75) {
+        p = bobRX(p, 0.0, -1.85, uTime * 2.6 + io + (aSway < 13.25 ? 0.0 : 3.14159));
+      } else if (aSway < 14.5) {
+        float tt = uTime + io;
+        p = bobRZ(p, -14.0, 0.0, 0.09 * sin(tt * 1.1));
+        p.y += 0.08 * sin(tt * 1.5);
+        p.z += 5.0 * sin(tt * 0.22);
+      } else p.y += sin(uTime * 1.6 + io) * 0.03; // 15: bather body bob
+      // in the sea (12 to 15): follow the swell of the sea shader (same formula, at the instance origin)
+      if (aSway > 11.75) { float wx = instanceMatrix[3].x + (aSway > 13.75 && aSway < 14.5 ? -14.0 : 0.0), wz = instanceMatrix[3].z; p.y += (sin(wx * 0.15 + uTime * 1.1) * 0.35 + sin(wz * 0.11 - uTime * 0.7) * 0.25) * uSeaChop; }
+    }
+    else if (aSway > 3.5) {
+      // v2.5 cyclists: 4 / 4.5 legs swing round the hip, 5 crank, 6 / 6.5 wheels spin
+      float ph = uTime * 8.5 + io;
+      if (aSway < 4.75) { float a = 0.36 * sin(ph + (aSway < 4.25 ? 0.0 : 3.14159)); float c = cos(a), s = sin(a); float y = p.y - 0.9, z = p.z - 0.18; p.y = 0.9 + y * c - z * s; p.z = 0.18 + y * s + z * c; }
+      else if (aSway < 5.5) { float c = cos(ph), s = sin(ph); float y = p.y - 0.36, z = p.z - 0.16; p.y = 0.36 + y * c - z * s; p.z = 0.16 + y * s + z * c; }
+      else { float wz = aSway < 6.25 ? -0.52 : 0.52; float c = cos(ph * 1.6), s = sin(ph * 1.6); float y = p.y - 0.34, z = p.z - wz; p.y = 0.34 + y * c - z * s; p.z = wz + y * s + z * c; }
+    }
+    else if (aSway > 1.5) {
+      float s = sin(uTime * 2.6 + io);
+      if (aSway < 2.25) p.z += 0.22 * pow(max(0.0, -s), 4.0);
+      else if (aSway < 2.75) p.z -= 0.22 * pow(max(0.0, s), 4.0);
+      else if (aSway < 3.15) { float c = cos(uTime * 2.6 + io); p.z += 2.3 * s; p.y += 0.9 * c * c; } // matkot / racquet
+      else if (aSway < 3.4) { // v2.5.8 volleyball: side-to-side bounce
+        float ph = uTime * 1.75 + io; float ss = sin(ph); p.z += 4.0 * ss; p.x += 1.0 * cos(ph * 0.5); p.y += 1.55 * abs(cos(ph));
+      } else { // v2.5.8 football air pass
+        float ph = uTime * 1.3 + io; float ss = sin(ph); p.z += 5.2 * ss; p.y += 2.1 * abs(cos(ph));
+      }
+    }
+  }
+#endif
+  vec4 wp = vec4(p, 1.0);
+#ifdef USE_INSTANCING
+#ifdef RIG
+  if (aRig.x > 4.5 && aRig.x < 5.5) wp = vec4(instanceMatrix[3].x + p.x, p.y + min(instanceMatrix[3].y, 0.0), instanceMatrix[3].z + p.z, 1.0); // world-fixed ground shadow
+  else
+#endif
+  wp = instanceMatrix * wp;
+#endif
+  wp = modelMatrix * wp;
+#ifdef SWAY
+  // v2.2 palm fronds bend inland (+x) with a steady breeze plus travelling gusts, and flutter
+  if (aSway > 0.0) {
+    float g = windGust(wp.z, uTime);
+    // v2.5.4: the gust front (source) throws the fronds a bit further, the tail (sink) lets them recoil
+    float bend = aSway * (uWind.x + uWind.y * (g + 0.3 * gustFlow(wp.z, uTime)));
+    float fl = sin(uTime * (4.0 + 4.0 * uWind.w) + wp.x * 1.7 + wp.z * 1.1 + wp.y * 2.3) * (0.12 + 0.45 * g) * uWind.z;
+    wp.x += bend + aSway * fl * 0.5;
+    wp.z += aSway * fl * 0.35;
+    wp.y -= bend * aSway * 0.3;
+  }
+#endif
+  vWorld = wp.xyz;
+  vec4 mvPosition = viewMatrix * wp;
+  gl_Position = projectionMatrix * mvPosition;
+#ifdef USE_COLOR
+  vCol = color;
+#else
+  vCol = vec3(1.0);
+#endif
+#ifdef TINT
+#ifdef USE_INSTANCING_COLOR
+  // aTint 2 = second figure / towel in the same instance: same instance color, rotated channels
+  vec3 ic = aTint > 1.5 ? instanceColor.gbr : instanceColor;
+#ifdef NEARVAR
+  if (aTint > 2.5) vCol *= mix(0.6, 1.14, aVar.z); // skin tone
+  else
+#endif
+  vCol = mix(vCol, vCol * ic, min(aTint, 1.0));
+#endif
+#endif
+  vLight = aLight;
+  vUv = uv;
+#ifdef LODFADE
+  vFade = aFade;
+#endif
+#ifdef ECHO
+  vEcho = aEcho;
+  if (aRig.x > 4.5) vEcho.x = 0.0; // echoes carry no ground shadow
+  vY = p.y;
+#endif
+#include <fog_vertex>
+}
+`;
+
+const BAKED_FRAG = `
+uniform vec3 uAmb;
+uniform vec3 uSun;
+uniform float uWet;
+uniform vec3 uSkyRefl;
+uniform vec3 uSunRefl;
+uniform vec3 uWindow;
+uniform float uTime;
+uniform vec3 uSunDir;
+uniform float uLights;
+#ifdef MAP
+uniform sampler2D map;
+#endif
+varying vec3 vCol;
+varying vec4 vLight;
+varying vec3 vWorld;
+varying vec2 vUv;
+#ifdef LODFADE
+varying float vFade;
+#endif
+#ifdef NEARFADE
+uniform vec4 uNear;
+#endif
+#include <fog_pars_fragment>
+void main() {
+#ifdef NEARFADE
+  // v2.5.23 1P near fade: screen-door dither by distance to the camera (hidden inside 0.55 R)
+  if (uNear.w > 0.0) {
+    float nk = (distance(vWorld, uNear.xyz) / uNear.w - 0.55) / 0.45;
+    if (nk < 1.0) {
+      float nn = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+      if (nn >= nk) discard;
+    }
+  }
+#endif
+#ifdef LODFADE
+  // v2.5 LOD cross-fade: screen-door dither, only while an instance changes tier (vFade != 0)
+  if (vFade != 0.0) {
+    float n = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    if (vFade > 0.0 ? n >= vFade : n < -vFade) discard;
+  }
+#endif
+  // v2.5.9 glass: vertices with aLight.z (wet) > 1.4 are translucent cafe panes (screen-door
+  // dither, no alpha sort / extra pass). Kept pixels get a cool tint + soft view-dependent sheen.
+#ifdef GLOWS
+  // v2.5.18 emissive bulbs / neon / lamps: aLight.z in [2.5, 4.5) = 3 + intensity, aLight.w = chase phase.
+  // Lit like paint by day; glow (multicolour, gentle chase / twinkle) as uLights rises. No real lights.
+  if (vLight.z > 2.5) {
+    float gi = vLight.z - 3.0;
+    vec3 litC = vCol * (uAmb * vLight.y + uSun * vLight.x);
+    float tw = 0.72 + 0.28 * sin(uTime * 2.3 + vLight.w * 6.2832 + vWorld.z * 0.13);
+    vec3 em = vCol * (0.75 + 1.1 * gi) * mix(1.0, tw, step(0.001, vLight.w));
+    gl_FragColor = vec4(mix(litC, em, uLights), 1.0);
+#include <fog_fragment>
+    return;
+  }
+#endif
+#ifdef GLASS
+  if (vLight.z > 1.4 && vLight.z < 2.5) {
+    vec3 V = normalize(cameraPosition - vWorld);
+    float graz = 1.0 - abs(V.y); // looking through upright panes
+    float keep = clamp(0.10 + (vLight.z - 1.4) * 0.48 + 0.50 * graz * graz, 0.07, 0.70);
+    float n = fract(52.9829189 * fract(dot(gl_FragCoord.xy + vec2(0.5), vec2(0.06711056, 0.00583715))));
+    // 2x2 ordered feel: average two samples so glass reads softer than a harsh hatch
+    float n2 = fract(52.9829189 * fract(dot(gl_FragCoord.xy + vec2(1.5, 0.5), vec2(0.06711056, 0.00583715))));
+    if (0.5 * (n + n2) > keep) discard;
+    // pale sea-glass tint; brighter at grazing angles (cheap Fresnel stand-in)
+    vec3 gcol = mix(vec3(0.72, 0.84, 0.90), uSkyRefl, 0.35);
+    gcol = mix(gcol, uSunRefl, 0.12 + 0.35 * pow(graz, 3.0));
+    vec3 gc = gcol * (uAmb * max(vLight.y, 0.55) + uSun * (0.2 + 0.55 * vLight.x));
+    gc += uSunRefl * pow(graz, 5.0) * 0.22;
+    gc = mix(gc, vec3(1.0, 0.8, 0.52), uLights * 0.45); // v2.5.18 warm lit rooms behind the glass
+    gl_FragColor = vec4(gc, 1.0);
+#include <fog_fragment>
+    return;
+  }
+#endif
+  vec3 alb = vCol;
+#ifdef MAP
+  alb *= mix(vec3(1.0), texture2D(map, vUv).rgb, vLight.w);
+#endif
+#ifdef TOWER
+  float wy = step(0.42, fract(vWorld.y * 0.31));
+  float wx = step(0.38, fract((vWorld.x + vWorld.z) * 0.37));
+  float win = wy * wx * step(4.0, vWorld.y);
+  float lit = step(0.62, fract(sin(floor(vWorld.y * 0.31) * 12.9898 + floor((vWorld.x + vWorld.z) * 0.37) * 78.233) * 43758.5453));
+  alb = mix(alb, alb * 0.55 + uWindow * (0.35 + 0.65 * lit) * 0.6, win);
+#endif
+  vec3 c = alb * (uAmb * vLight.y + uSun * vLight.x);
+#ifdef GLASS
+  c += alb * vec3(1.0, 0.8, 0.55) * 0.3 * uLights; // v2.5.18 warm interior / facade light at the eateries
+#endif
+#ifdef WETSURF
+  float w = uWet * vLight.z;
+  if (w > 0.002) {
+    vec3 V = normalize(cameraPosition - vWorld);
+    float fres = pow(1.0 - clamp(V.y, 0.0, 1.0), 3.0);
+    float pud = sin(vWorld.x * 0.83 + sin(vWorld.z * 0.21) * 2.3) * sin(vWorld.z * 0.31 + vWorld.x * 0.17) + 0.35 * sin(vWorld.z * 1.13 + 1.7);
+    pud = smoothstep(0.25, 0.55, pud);
+    c *= 1.0 - 0.45 * w;
+#ifdef REFLECT
+    // Fake mirrored sky: vertical gradient of the sky color, plus a sun/lamp streak. No render target.
+    vec2 toSun = normalize(uSunDir.xz);
+    vec2 d = vWorld.xz - cameraPosition.xz;
+    float along = dot(normalize(d + vec2(0.0001)), toSun);
+    float streak = pow(max(0.0, along), 24.0) * (0.6 + 0.4 * sin(vWorld.z * 3.1 + uTime * 2.0));
+    vec3 refl = uSkyRefl * (0.25 + 0.75 * fres) + uSunRefl * streak;
+    c = mix(c, refl, w * (0.18 + 0.55 * pud) * (0.35 + 0.65 * fres));
+#else
+    c = mix(c, uSkyRefl * 0.6, w * pud * 0.25);
+#endif
+  }
+#endif
+  gl_FragColor = vec4(c, 1.0);
+#include <fog_fragment>
+}
+`;
+
+const ECHO_FRAG = `
+uniform vec3 uEchoColor;
+varying vec2 vEcho;
+varying float vY;
+varying vec3 vCol;
+varying vec4 vLight;
+varying vec3 vWorld;
+varying vec2 vUv;
+float sech2(float x) { float e = exp(-abs(x)); float d = 1.0 + e * e; return 4.0 * e * e / (d * d); }
+void main() {
+  // Soliton envelope: the clone keeps its full shape; a sech^2 pulse travels up the body.
+  float env = vEcho.x;
+  float band = sech2((vY - vEcho.y) * 2.6);
+  vec3 c = mix(uEchoColor, vec3(0.92, 0.9, 1.0), 0.15 + 0.6 * band);
+  gl_FragColor = vec4(c, env * (0.75 + 0.5 * band));
+}
+`;
+
+export function bakedMaterial(opts = {}) {
+  const defines = {};
+  if (opts.rig) defines.RIG = '';
+  if (opts.tint) defines.TINT = '';
+  if (opts.map) defines.MAP = '';
+  if (opts.wet) defines.WETSURF = '';
+  if (opts.reflect) defines.REFLECT = '';
+  if (opts.tower) defines.TOWER = '';
+  if (opts.echo) defines.ECHO = '';
+  if (opts.sway) defines.SWAY = '';
+  if (opts.bob) defines.BOB = '';
+  if (opts.decorWalk) defines.DECORWALK = '';
+  if (opts.lodFade) defines.LODFADE = '';
+  if (opts.nearVar) defines.NEARVAR = '';
+  if (opts.glass) defines.GLASS = ''; // v2.5.9 restaurant panes
+  if (opts.glows) defines.GLOWS = ''; // v2.5.18 emissive bulbs / neon / lamps
+  // v2.5.23 1P near fade: shaders that already discard (LOD dither / glass) always carry it; the others get it
+  // only while the 1st-person camera is on (setNearFade), so 3rd person keeps discard-free shaders (early-Z on LOW)
+  const always = !!(opts.lodFade || opts.glass), canNear = !opts.echo && !opts.tower && opts.near !== false;
+  if (canNear && (always || nearFadeOn)) defines.NEARFADE = '';
+  const uniforms = Object.assign(fogUniforms(), U);
+  if (opts.map) uniforms.map = { value: opts.map };
+  const m = new THREE.ShaderMaterial({
+    defines, uniforms, vertexShader: BAKED_VERT,
+    fragmentShader: opts.echo ? ECHO_FRAG : BAKED_FRAG,
+    vertexColors: !opts.echo, fog: !opts.echo,
+  });
+  if (opts.echo) {
+    m.transparent = true; m.depthWrite = false; m.blending = THREE.NormalBlending; // stacked copies saturate to the echo color, never to white
+  }
+  if (canNear && !always) nearToggled.add(new WeakRef(m)); // weak: rebuilt preset materials can be collected
+  return m;
+}
+// v2.5.23: switch the near fade define on the discard-free baked materials (1st person on / off). Programs are
+// cached by three.js, so switching back and forth only compiles each variant once.
+let nearFadeOn = false;
+const nearToggled = new Set();
+export function setNearFade(on) {
+  on = !!on; if (on === nearFadeOn) return; nearFadeOn = on;
+  for (const w of nearToggled) {
+    const m = w.deref(); if (!m) { nearToggled.delete(w); continue; }
+    if (on) m.defines.NEARFADE = ''; else delete m.defines.NEARFADE;
+    m.needsUpdate = true;
+  }
+}
+
+// ---------- Sky: gradient dome drawn AFTER opaque geometry (renderOrder) with depth test on,
+// so pixels covered by the boulevard are rejected by the depth test and never shaded.
+export function skyMaterial() {
+  return new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    defines: {},
+    uniforms: {
+      uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSunCol: { value: new THREE.Color() },
+      uSunDir: U.uSunDir, uSunSize: { value: 1 }, uCloud: { value: 0.3 }, uOvercast: { value: 0 }, uTime: U.uTime, uCity: { value: new THREE.Color() },
+      uJaffa: { value: new THREE.Vector2(0.8, 0.8) },
+    },
+    vertexShader: `
+      varying vec3 vDir;
+      void main() {
+        vDir = normalize(position);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_Position.z = gl_Position.w * 0.99999;
+      }`,
+    fragmentShader: `
+      uniform vec3 uTop; uniform vec3 uHor; uniform vec3 uSunCol; uniform vec3 uSunDir;
+      uniform float uSunSize; uniform float uCloud; uniform float uOvercast; uniform float uTime; uniform vec3 uCity; uniform vec2 uJaffa;
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = d.y;
+        vec3 c = mix(uHor, uTop, pow(clamp(h, 0.0, 1.0), 0.55));
+        float sd = max(0.0, dot(d, uSunDir));
+        c += uSunCol * (pow(sd, 6.0) * 0.35 + pow(sd, 60.0) * 0.6) * uSunSize;
+        c = mix(c, uSunCol * 1.25, smoothstep(0.9993, 0.99965, sd) * uSunSize);
+        // v2.5.8 CLOUDY: a soft grey cloud deck (projected on a flat layer, drifting), all presets, cheap
+        if (uOvercast > 0.001 && h > 0.0) {
+          vec2 q = d.xz / max(h, 0.07) * 0.55;
+          float n = sin(q.x * 1.7 + uTime * 0.025) * sin(q.y * 1.3 - uTime * 0.018) + 0.55 * sin(q.x * 3.9 + q.y * 2.3 + uTime * 0.04) + 0.3 * sin(q.y * 7.1 - q.x * 1.1);
+          float puff = smoothstep(-0.5, 1.0, n);
+          vec3 cc = mix(uHor * 0.8, uHor * 1.07 + uSunCol * pow(sd, 4.0) * 0.12, puff);
+          c = mix(c, cc, uOvercast * smoothstep(0.0, 0.1, h) * (0.6 + 0.35 * puff));
+        }
+#ifdef CLOUDS
+        float az = atan(d.x, d.z);
+        float band = sin(az * 7.0 + uTime * 0.01) * 0.5 + sin(az * 17.0 + h * 40.0) * 0.3 + sin(az * 3.0 - 1.0) * 0.4;
+        float cl = smoothstep(0.35, 0.9, band) * smoothstep(0.02, 0.1, h) * smoothstep(0.32, 0.12, h) * uCloud;
+        c = mix(c, uHor * 1.08 + uSunCol * pow(sd, 3.0) * 0.4, cl * 0.6);
+        // distant city skyline silhouette on the east side
+        float skyl = 0.012 + 0.02 * step(0.5, fract(az * 9.0)) + 0.015 * step(0.7, fract(az * 23.0));
+        float east = smoothstep(0.1, 0.5, d.x);
+        c = mix(c, uCity, east * step(h, skyl) * step(0.0, h) * 0.8);
+#endif
+        // v2.1 landmark: an Old Jaffa style skyline far ahead across the bay (original procedural
+        // shapes: hill with houses, a church bell tower with spire, a clock tower, a minaret).
+        // It slowly grows with distance run (uJaffa.x) and fades with the weather haze (uJaffa.y).
+        float ja = atan(d.x, -d.z);
+        float ju = (ja + 0.24) / (0.085 * uJaffa.x);
+        if (abs(ju) < 1.8 && h > -0.001 && h < 0.06) {
+          float hill = sqrt(max(0.0, 1.0 - ju * ju)) * 0.42;
+          float houses = step(0.12, hill) * 0.07 * step(0.45, fract(ju * 13.0 + 0.3));
+          float bx = abs(ju - 0.16);
+          float bell = bx < 0.05 ? 0.98 : 0.0;
+          float spire = max(0.0, 1.24 - bx * 6.0) * step(bx, 0.05);
+          float cx = abs(ju + 0.34);
+          float clock = cx < 0.045 ? 0.74 + step(cx, 0.015) * 0.06 : 0.0;
+          float minaret = abs(ju - 0.55) < 0.016 ? 0.9 : 0.0;
+          float coast = 0.05 * smoothstep(1.8, 0.95, abs(ju));
+          float top = max(max(hill + houses, max(bell, spire)), max(max(clock, minaret), coast));
+          float sil = step(h, top * 0.034 * uJaffa.x);
+          c = mix(c, mix(uHor, uCity, 0.65), sil * uJaffa.y);
+        }
+        if (h < 0.0) c = uHor;
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+}
+
+// ---------- Sea: one strip mesh that follows the camera; waves and sun glitter in the shader.
+export function seaMaterial(waves) {
+  const uniforms = Object.assign(fogUniforms(), {
+    uDeep: { value: new THREE.Color() }, uShallow: { value: new THREE.Color() }, uGlitter: { value: 1 },
+    uChop: { value: 0.5 }, uSunCol: { value: new THREE.Color() }, uTime: U.uTime, uSunDir: U.uSunDir, uFoam: { value: new THREE.Color(1, 0.95, 0.9) },
+  });
+  return new THREE.ShaderMaterial({
+    fog: true, uniforms, defines: waves ? { WAVES: '' } : {},
+    vertexShader: `
+      uniform float uTime; uniform float uChop;
+      varying vec3 vWorld;
+      #include <fog_pars_vertex>
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+#ifdef WAVES
+        wp.y += (sin(wp.x * 0.15 + uTime * 1.1) * 0.35 + sin(wp.z * 0.11 - uTime * 0.7) * 0.25) * uChop;
+#endif
+        vWorld = wp.xyz;
+        vec4 mvPosition = viewMatrix * wp;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      uniform vec3 uDeep; uniform vec3 uShallow; uniform float uGlitter; uniform float uChop;
+      uniform vec3 uSunCol; uniform float uTime; uniform vec3 uSunDir; uniform vec3 uFoam;
+      varying vec3 vWorld;
+      #include <fog_pars_fragment>
+      void main() {
+        float shore = clamp((vWorld.x + 46.0) / -60.0, 0.0, 1.0);
+        vec3 c = mix(uShallow, uDeep, sqrt(shore));
+        vec2 d = normalize(vWorld.xz - cameraPosition.xz);
+        float path = pow(max(0.0, dot(d, normalize(uSunDir.xz))), 18.0);
+        float sp = sin(vWorld.x * 1.7 + uTime * 2.3) * sin(vWorld.z * 2.3 - uTime * 1.9) * sin((vWorld.x + vWorld.z) * 0.9 + uTime);
+        c += uSunCol * path * (0.35 + smoothstep(0.2, 0.9, sp) * 1.4) * uGlitter;
+        float foam = smoothstep(0.75, 1.0, sin(vWorld.x * 0.9 + uTime * 1.6 + sin(vWorld.z * 0.13) * 2.0)) * (1.0 - smoothstep(0.0, 0.12, shore));
+        c = mix(c, uFoam, foam * (0.5 + uChop * 0.4));
+        gl_FragColor = vec4(c, 1.0);
+        #include <fog_fragment>
+      }`,
+  });
+}
+
+// ---------- v2.5.18 establishment / car glow: additive camera-facing sprites (halos) and flat ground pools.
+// One instanced draw per fleet, hidden in daylight. aG = (corner x, corner y, kind: 0 sprite / 1 pool / 2 tail),
+// aS = size (sprite radius | pool half sizes), aPh = chase phase. Instance colour r = brake (tail lights).
+// No render targets, no post, no real lights; fades with the fog.
+export function glowMaterial() {
+  const uniforms = Object.assign(fogUniforms(), { uLights: U.uLights, uTime: U.uTime });
+  return new THREE.ShaderMaterial({
+    uniforms, vertexColors: true, fog: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `
+      attribute vec3 aG; attribute vec2 aS; attribute float aPh;
+      uniform float uLights; uniform float uTime;
+      varying vec3 vC; varying vec2 vQ; varying float vD; varying float vK;
+      void main() {
+        vec4 wp = vec4(position, 1.0);
+#ifdef USE_INSTANCING
+        wp = instanceMatrix * wp;
+#endif
+        wp = modelMatrix * wp;
+        float lv = uLights;
+        float tw = aPh < 0.0 ? 1.0 : 0.7 + 0.3 * sin(uTime * 2.3 + aPh * 6.2832 + wp.z * 0.13);
+        if (aG.z > 0.5 && aG.z < 1.5) {
+          vec3 off = vec3(aG.x * aS.x, 0.0, aG.y * aS.y);
+#ifdef USE_INSTANCING
+          off = mat3(instanceMatrix) * off;
+#endif
+          wp.xyz += off; tw = 0.88 + 0.12 * tw;
+        }
+#ifdef USE_INSTANCING_COLOR
+        if (aG.z > 1.5) lv = max(lv * 0.8, instanceColor.r); // brake lights also by day
+#endif
+        vec4 mv = viewMatrix * wp;
+        if (aG.z < 0.5 || aG.z > 1.5) mv.xy += aG.xy * aS.x;
+        gl_Position = projectionMatrix * mv;
+        vC = color * tw * lv; vQ = aG.xy; vD = -mv.z; vK = aG.z;
+      }`,
+    fragmentShader: `
+      uniform float fogNear; uniform float fogFar;
+      varying vec3 vC; varying vec2 vQ; varying float vD; varying float vK;
+      void main() {
+        float r = length(vQ);
+        float a = clamp(1.0 - r, 0.0, 1.0);
+        a = (vK > 0.5 && vK < 1.5) ? a * a * (3.0 - 2.0 * a) : a * a * 0.85 + 0.9 * pow(a, 6.0);
+        float f = 1.0 - smoothstep(fogNear, fogFar, vD);
+        if (a * f < 0.004) discard;
+        gl_FragColor = vec4(vC * a * f, 1.0);
+      }`,
+  });
+}
