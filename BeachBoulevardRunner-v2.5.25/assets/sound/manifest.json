@@ -1,0 +1,50 @@
+{
+  "package": "Beach Boulevard Runner ambience",
+  "version": "1.0",
+  "rate": 44100,
+  "channels": {
+    "crowd": {
+      "file": "crowd-chatter-loop.wav",
+      "loop": true
+    },
+    "rain": {
+      "file": "rain-loop.wav",
+      "loop": true
+    },
+    "wind": {
+      "file": "wind-loop.wav",
+      "loop": true
+    },
+    "gulls": {
+      "files": [
+        "seagull-1.wav",
+        "seagull-2.wav",
+        "seagull-3.wav"
+      ],
+      "loop_bed": "seagulls-loop.wav",
+      "loop": false
+    },
+    "bells": {
+      "file": "bike-bell.wav",
+      "loop": false
+    },
+    "clinks": {
+      "file": "cafe-clink.wav",
+      "loop": false
+    },
+    "barks": {
+      "files": [
+        "dog-bark-1.wav",
+        "dog-bark-2.wav"
+      ],
+      "loop": false
+    },
+    "steps": {
+      "files": [
+        "footstep-dry.wav",
+        "footstep-wet.wav"
+      ],
+      "loop": false
+    }
+  }
+}
