@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#141b22">
+<title>Beach Boulevard Runner v2.5.29</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="hud">
+    <div class="tl">
+      <div class="label">SCORE</div><div id="score" class="big">0</div>
+      <div id="dist" class="small">0 m</div>
+      <div id="heat" class="heat h1">HEAT 1  x1.0</div>
+    </div>
+    <div class="tc">
+      <div id="trit" class="trit coast"><span id="tritTxt">0 COAST</span></div>
+      <canvas id="hist" width="180" height="32"></canvas>
+    </div>
+    <div class="tr">
+      <div id="weather" class="wchip">GOLDEN / DUST</div>
+      <div id="wsub" class="small">late afternoon</div>
+    </div>
+    <div class="bl">
+      <div class="meter"><span class="mlabel">FLOW</span><div class="bar"><div id="flowBar" class="fill flow"></div></div><span id="flowTxt" class="mval">0%</span></div>
+      <div class="meter" id="comboBox"><span class="mlabel">COMBO</span><span id="combo" class="combo">x1</span></div>
+      <div class="meter"><span class="mlabel">STAMINA</span><div class="bar"><div id="stamBar" class="fill stam"></div></div><span id="stamTxt" class="mval">100%</span></div>
+    </div>
+    <div id="flash"></div>
+    <div id="pops"></div>
+    <div id="toast"></div>
+  </div>
+  <button id="gear" title="Settings">SET <span id="qchip">HIGH</span></button>
+  <button id="fs" title="Fullscreen">FULLSCREEN</button>
+  <button id="camBtn" type="button" title="Camera: 3rd / 1st person (V)" aria-label="Switch camera"><b id="camTxt">3P</b><small>VIEW</small></button>
+  <button id="musBtn" type="button" title="Muscle shading quick mute (B)" aria-label="Toggle muscle shading"><b>ON</b><small>MUSC</small></button>
+  <button id="pauseBtn" type="button" title="Pause (P / Esc)" aria-label="Pause"><i></i><i></i></button>
+  <div id="fpsBox"><div><b id="fpsNow" class="fpsv">-- FPS</b></div><div id="fpsMs"></div><div>avg <span id="fpsAvg">--</span></div><div>1% <span id="fpsLow">--</span> min <span id="fpsMin">--</span></div><div id="fpsInfo"></div><button id="fpsReset" type="button" title="Restart the average and low counters">RESET</button></div>
+  <pre id="debug"></pre>
+
+  <div id="title" class="overlay">
+    <div class="card">
+      <div class="kicker">TEL AVIV PROMENADE AT SUNSET <span class="ver" id="verTitle">v2.5.29</span></div>
+      <h1>BEACH BOULEVARD<br><span>RUNNER</span></h1>
+      <p class="tag">Thread the crowd. Hold the line. Keep running.</p>
+      <div class="controls">
+        <div class="kb"><b>Arrows / A D</b> change lane</div>
+        <div class="kb"><b>Space</b> jump (dogs, planters)</div>
+        <div class="kb"><b>Shift / Down</b> slide (banners)</div>
+        <div class="kb"><b>Click</b> dash through people</div>
+        <div class="kb"><b>Up / W</b> sprint (stamina)</div>
+        <div class="kb"><b>Gamepad</b> stick, A jump, B slide, X dash, RB sprint</div>
+        <div class="tch"><b>Swipe left / right</b> change lane</div>
+        <div class="tch"><b>Swipe up</b> jump (dogs, planters)  <b>Swipe down</b> slide (banners)</div>
+        <div class="tch"><b>Tap</b> dash through people</div>
+        <div class="kb"><b>Q</b> quality  <b>F3</b> stats  <b>N</b> next weather  <b>P</b> pause  <b>M</b> sound  <b>B</b> muscle</div>
+        <div><b>Grab</b> violet flow orbs (all 5 = ORB TRAIL), gold air orbs over planters, teal drinks refill stamina. <b>Jump a leash</b> for a LEASH HOP. Every 450 m the HEAT rises.</div>
+      </div>
+      <div class="charpick">RUNNER <button data-char="female">FEMALE</button><button data-char="male">MALE</button></div>
+      <div class="go"><span class="kb">Press SPACE, click or </span>tap to run</div>
+      <div id="best" class="small"></div>
+    </div>
+  </div>
+  <div id="over" class="overlay">
+    <div class="card results">
+      <div class="kicker">RUN RESULTS</div>
+      <h1><span>COLLAPSED</span></h1>
+      <div class="gradeRow"><div id="grade" class="grade">B</div><div><div id="gradeLabel" class="tag"></div><div id="newBest" class="newbest">NEW PERSONAL BEST</div></div></div>
+      <div id="statGrid" class="statgrid"></div>
+      <div id="career" class="small"></div>
+      <div class="row"><button id="again">RUN AGAIN</button></div>
+      <div class="go"><span class="kb">SPACE / click / </span>tap to run again</div>
+    </div>
+  </div>
+  <div id="pause" class="overlay"><div class="card pausecard"><h1><span>PAUSED</span></h1>
+    <div class="row pauserow"><button id="pResume" type="button">RESUME</button><button id="pSet" type="button">SET</button><button id="pRestart" type="button">RESTART</button></div>
+    <div class="go"><span class="kb">P / Esc / click outside to resume</span><span class="tch">tap outside the card to resume</span></div></div></div>
+  <div id="settings" class="overlay">
+    <div class="card">
+      <div class="setver">BEACH BOULEVARD RUNNER <span class="ver" id="verSet">v2.5.29</span></div>
+      <h2>Quality</h2>
+      <div class="presets">
+        <button data-preset="LOW">LOW<small>old GPUs: 0.65x res, light crowd, no close-up models</small></button>
+        <button data-preset="MEDIUM">MEDIUM<small>1x res, more crowd, a few close-up models</small></button>
+        <button data-preset="HIGH">HIGH<small>up to 2x res, MSAA, detailed close-ups</small></button>
+        <button data-preset="ULTRA">ULTRA<small>up to 3x res, max crowd, longest detail range</small></button>
+      </div>
+      <div class="fpsrow"><label class="chk"><input type="checkbox" id="optFps"> Show FPS (small corner overlay: current, average, 1% low, frame time)</label><button id="fpsResetSet" type="button">Reset FPS</button></div>
+      <div class="tunebox">
+        <label class="chk"><input type="checkbox" id="optTune"> Auto-tune graphics: while you run it tries 16 settings (resolution, detail range, crowd, traffic) for about 4 s each, measures the real frame rate and keeps the best looking one that holds the target</label>
+        <div class="tunerow"><span>Target FPS</span><button data-tgt="0" type="button">AUTO</button><button data-tgt="30" type="button">30</button><button data-tgt="45" type="button">45</button><button data-tgt="60" type="button">60</button><button id="tuneRetune" type="button">Re-tune</button></div>
+        <div id="tuneSum" class="small tunesum"></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="adaptive"> <span id="adaptTxt">Adaptive safety net (if FPS stays under 45: shorten the detail range, then drop one preset)</span></label>
+      <h2>Sound and feel</h2>
+      <div class="opts">
+        <label class="chk"><input type="checkbox" id="optSound"> Sound effects (M)</label>
+        <label class="chk"><input type="checkbox" id="optMusic"> Music (3 songs in a loop)</label>
+        <div class="ambhead trackrow"><span id="musicTrack">Song 1/3</span><span class="ambbtns"><button id="musicNext" type="button">Next song</button></span></div>
+        <div class="vols">
+          <label class="vol"><span>Master</span><input type="range" id="volMaster" min="0" max="100" step="1" value="100"><b id="volMasterTxt">100</b></label>
+          <label class="vol"><span>Music</span><input type="range" id="volMusic" min="0" max="100" step="1" value="100"><b id="volMusicTxt">100</b></label>
+          <label class="vol"><span>Ambience</span><input type="range" id="volAmb" min="0" max="100" step="1" value="100"><b id="volAmbTxt">100</b></label>
+          <label class="vol"><span>Effects</span><input type="range" id="volSfx" min="0" max="100" step="1" value="100"><b id="volSfxTxt">100</b></label>
+        </div>
+        <div class="ambhead"><span>Ambience sounds</span><span class="ambbtns"><button id="ambTest" type="button">Test sounds</button><button id="ambAllOn" type="button">All on</button></span></div>
+        <div id="ambList" class="amblist"></div>
+        <label class="chk"><input type="checkbox" id="optHaptics"> Vibration on near miss, pickup and contact (phones)</label>
+      </div>
+      <h2>Runner</h2>
+      <div class="presets char2">
+        <button data-char="female">FEMALE<small>ponytail, white top</small></button>
+        <button data-char="male">MALE<small>short hair, blue tee</small></button>
+      </div>
+      <h2>Muscle shading</h2>
+      <label class="chk"><input type="checkbox" id="optMuscle"> Close-up muscle definition on HIGH / ULTRA (fades out past ~17 m; no cost on LOW / MEDIUM)</label>
+      <div class="presets char2" id="muscleStrRow">
+        <button type="button" data-mstr="soft">SOFTER<small>~0.5x painted contrast and flex</small></button>
+        <button type="button" data-mstr="normal">NORMAL<small>default intensity</small></button>
+        <button type="button" data-mstr="strong">STRONGER<small>~1.7x contrast and flex</small></button>
+      </div>
+      <label class="chk"><input type="checkbox" id="optMuscleBare"> Only on bare skin (no chest / back / glute folds through shirts or shorts)</label>
+      <h2>Sky</h2>
+      <label class="chk"><input type="checkbox" id="optAircraft"> Aircraft: small plane + helicopter along the shore, airliner from the sea (sound: Aircraft in the sound section)</label>
+      <label class="chk"><input type="checkbox" id="optBikes"> Bikes &amp; scooters: rental docks every ~270 m, people rent, ride, lock up at cafes (sound: Bikes &amp; scooters)</label>
+      <label class="chk"><input type="checkbox" id="optGym"> Outdoor gyms: fitness stations on the shore side every 400 m (sound: Gym)</label>
+      <label class="chk"><input type="checkbox" id="optVendors"> Vendors: popsicle sellers roaming the sand and carts pushed along the boulevard (sound: Vendors)</label>
+      <label class="chk"><input type="checkbox" id="optIceCream"> Ice cream truck: drives with the traffic, stops at the curb, people queue for cones (sound: Ice cream truck)</label>
+      <label class="chk"><input type="checkbox" id="optBalloons"> Balloon people: someone with a bunch of balloons every 13 s (sound: Balloons)</label>
+      <h2>Crowd gatherings</h2>
+      <div class="presets char2">
+        <button type="button" data-gather="0">OFF<small>people walk on (v2.5.25)</small></button>
+        <button type="button" data-gather="1">SOME<small>small circles now and then</small></button>
+        <button type="button" data-gather="2">LOTS<small>more, bigger circles</small></button>
+      </div>
+      <h2>Camera</h2>
+      <div class="presets char2">
+        <button data-cam="3p">3RD PERSON<small>chase camera behind the runner</small></button>
+        <button data-cam="1p">1ST PERSON<small>through the runner's eyes (V)</small></button>
+      </div>
+      <label class="chk"><input type="checkbox" id="optBob"> Head-bob in 1st person (turn off for comfort)</label>
+      <div class="small">GPU: <span id="gpuName"></span></div>
+      <div class="row setfoot"><button id="redetect">Auto-detect</button><button id="closeSettings">Close</button></div>
+    </div>
+  </div>
+  <div id="nogl" class="overlay"><div class="card"><h2>The game did not start</h2>
+    <p class="tag">This browser could not start WebGL 2, or the scripts were blocked.<br>
+    Start the game with start-game.cmd (it runs a small local web server).<br>
+    If it still stays on this screen, use start-game-mimefix.cmd instead.</p></div></div>
+</div>
+<script>
+  // Fallback notice if the ES module never boots (file:// or wrong MIME type).
+  setTimeout(function () { if (!window.__bbrBooted) document.getElementById('nogl').style.display = 'flex'; }, 6000);
+  window.addEventListener('error', function (e) { if (!window.__bbrBooted) { var n = document.getElementById('nogl'); n.style.display = 'flex'; } });
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
