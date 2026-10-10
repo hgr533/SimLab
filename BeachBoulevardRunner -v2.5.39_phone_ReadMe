@@ -1,0 +1,43 @@
+1. Added a Rashimu-Observer (Turn on the FPS counter in SET. The box now shows:
+
+FPS, frame ms, average, 1% low, min — same as before
+RESHIMU — belief (COAST / LOCK / ZONE / CONTACT), rapidity (speed and sideways drift), and the last observed event
+
+The observer still samples at 4 Hz and never steers. The full card with the frame graph and JSON export is still there if you want the detail. The live summary is now in the FPS readout.)
+
+* Reshimu should watch the run and record telemetry, not steer it. I'll find the gameplay loop and attach an observer outside that loop.
+The run already exposes its state. I'll add Reshimu as a separate observer that only reads it, and keep Tzimtzum for after the run.
+The build is stuck behind a wedged preview server. I'll clear both and build on its own.
+Reshimu is in the run. It watches. It does not steer.
+A card on the left, RESHIMU · OBSERVER, updates while you run:
+
+Rapidity is your speed and sideways drift.
+Belief is what the line looks like from the outside: COAST, OPEN LINE, LOCK, ZONE, or CONTACT.
+Law is the last thing it saw, such as a near miss, a dash, or a hit, written down and left alone.
+
+It samples four times a second, off the frame loop. The runner, crowd, and scoring are unchanged.
+
+2. Wired into v2.5.38. The ergosphere and virtues sit on the existing intent forces, so the velocity damp stays frame-rate independent and the matrices are untouched.
+
+What changed:
+
+Spawn — each pedestrian gets gi (0.8), yu (random courage), and laneX.
+Ergosphere — radius grows with speed and heat. Ahead and inside it: low yu panics to the outer lane, high yu pins to laneX, everyone else gets a clamped lateral push. Sea and visit goals are left alone.
+Jin — if a family member shifts lane, siblings follow, rate-limited to once per 0.45 s so it doesn't cascade.
+Gi — scales the existing lane spring. No raw dt lerp, so no snap.
+QNH — higher heat raises the chance of random lane changes, capped at 0.7.
+
+Open the file on your phone and run. Low-courage people should peel off early, high-courage ones should hold their line.
+
+3. Shorter, softer afterimages, fading near the camera.
+Reshimu frame-time graph, with stutter counts included in exports.
+Family groups: two adults and one child, predictable movement near the sides. Toggle in SET.
+SET → Graphic style: 3D / 3D Anime / Anime, independent of camera and graphics quality.
+
+4. Elderly pedestrians, including canes, rollators, couples, and bench sitters. Toggle them in SET.
+Current population ratios:
+Group	Current logic
+Main crowd	Approximately 55% short-haired / 45% long-haired variants; gender isn’t explicitly tracked
+Balloon carriers	35% chance of a child
+One beach-mover group	35% chance of a child
+Elderly	Separate population capped by graphics preset
