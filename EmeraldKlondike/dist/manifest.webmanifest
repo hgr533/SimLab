@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Emerald Klondike",
+  "short_name": "Klondike",
+  "description": "Classic Klondike solitaire on a green felt table. Play with touch or mouse, online or offline.",
+  "lang": "en",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#075b43",
+  "theme_color": "#075b43",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

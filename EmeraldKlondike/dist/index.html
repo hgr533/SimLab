@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#075b43">
+  <meta name="application-name" content="Emerald Klondike">
+  <meta name="description" content="A calm, classic game of Klondike. Play with a mouse or touch, save your deal, and enjoy it offline.">
+  <title>Emerald Klondike</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="engine.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <pattern id="card-weave" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#0b64aa"/><path d="M8 0L16 8 8 16 0 8Z" fill="none" stroke="#58b2e6" stroke-width="1.1"/><path d="M8 3L13 8 8 13 3 8Z" fill="none" stroke="#b5e2f7" stroke-width=".5"/><circle cx="8" cy="8" r="1.5" fill="#d1eefe"/></pattern>
+    <linearGradient id="paper" x2="0" y2="1"><stop stop-color="#fffefb"/><stop offset="1" stop-color="#f3f2ed"/></linearGradient>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M8 5 3 10l5 5M4 10h9a7 7 0 0 1 0 14" transform="translate(0 -3)"/></symbol>
+    <symbol id="i-hint" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M8 14a7 7 0 1 1 8 0c-1 .8-1 1.5-1 2H9c0-.5 0-1.2-1-2Z"/></symbol>
+    <symbol id="i-new" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+    <symbol id="i-auto" viewBox="0 0 24 24"><path d="m5 19 12-12M15 3v4M19 7h4M3 10h4M5 8v4M16 15v4M14 17h4m-2-9 3 3"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8Z"/></symbol>
+    <symbol id="i-recycle" viewBox="0 0 24 24"><path d="M20 8A9 9 0 1 0 21 15M20 3v6h-6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L20 5"/></symbol>
+  </defs></svg>
+  <header class="appbar">
+    <a class="brand" href="#" aria-label="Emerald Klondike home"><span class="brand-mark">♠</span><span><strong>EMERALD</strong><small>KLONDIKE</small></span></a>
+    <div class="scoreboard" aria-label="Game statistics">
+      <div class="stat"><span data-i18n="time">Time</span><strong id="timer">0:00</strong></div>
+      <div class="stat"><span data-i18n="score">Score</span><strong id="score">0</strong></div>
+      <div class="stat moves-stat"><span data-i18n="moves">Moves</span><strong id="moves">0</strong></div>
+    </div>
+    <div class="header-actions"><button id="pause-button" class="icon-button" aria-label="Pause"><svg><use href="#i-pause"/></svg></button><button id="menu-button" class="icon-button" aria-label="Menu"><svg><use href="#i-menu"/></svg></button></div>
+  </header>
+  <main id="game" aria-label="Klondike solitaire table">
+    <div class="table-meta"><span id="deal-label">Classic · Draw 1</span><span id="save-label"><svg><use href="#i-check"/></svg><span data-i18n="saved">Saved on this device</span></span></div>
+    <div id="board" class="board" aria-label="Cards"></div>
+    <div class="table-signature" aria-hidden="true"><span>♣</span><span>ONE DECK. A LITTLE PATIENCE.</span><span>♦</span></div>
+  </main>
+  <nav class="toolbar" aria-label="Game controls">
+    <button id="undo-button" class="toolbar-button"><svg><use href="#i-undo"/></svg><span data-i18n="undo">Undo</span><kbd>Ctrl Z</kbd></button>
+    <button id="hint-button" class="toolbar-button"><svg><use href="#i-hint"/></svg><span data-i18n="hint">Hint</span><kbd>H</kbd></button>
+    <button id="auto-button" class="toolbar-button"><svg><use href="#i-auto"/></svg><span data-i18n="auto">Auto-finish</span><kbd>A</kbd></button>
+    <span class="toolbar-divider"></span>
+    <button id="new-button" class="toolbar-button primary-toolbar"><svg><use href="#i-new"/></svg><span data-i18n="new">New game</span><kbd>N</kbd></button>
+  </nav>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="pause-screen" class="pause-screen" hidden><div class="pause-card"><span class="pause-emblem">♠</span><h1 data-i18n="paused">Take your time.</h1><p data-i18n="pauseNote">Your game is right where you left it.</p><button id="resume-button" class="solid-button" data-i18n="resume">Resume game</button></div></div>
+  <dialog id="menu-dialog" class="dialog">
+    <div class="dialog-heading"><div><small data-i18n="yourTable">YOUR TABLE</small><h2 data-i18n="settings">Make yourself at home</h2></div><button class="close-dialog icon-button" aria-label="Close">×</button></div>
+    <div class="setting-row"><div><strong data-i18n="language">Language</strong><small data-i18n="languageNote">The cards keep their familiar order.</small></div><div class="segmented"><button id="language-en" lang="en">EN</button><button id="language-he" lang="he">עברית</button></div></div>
+    <div class="setting-row"><div><strong data-i18n="difficulty">Difficulty</strong><small id="difficulty-note">Easy draws one card with unlimited stock passes.</small></div><div class="segmented difficulty-choices"><button id="difficulty-easy" data-i18n="easy">Easy</button><button id="difficulty-classic" data-i18n="classic">Classic</button><button id="difficulty-hard" data-i18n="hard">Challenge</button></div></div>
+    <div class="setting-row"><div><strong data-i18n="drawMode">Cards per draw</strong><small data-i18n="drawNote">Overrides the preset draw count for your next new deal.</small></div><div class="segmented"><button id="draw-one">1</button><button id="draw-three">3</button></div></div>
+    <div id="statistics" class="statistics"></div>
+    <div class="menu-actions"><button id="restart-button" class="outline-button" data-i18n="restart">Restart this deal</button><button id="rules-button" class="outline-button" data-i18n="howTo">How to play</button><button id="export-button" class="outline-button" data-i18n="export">Export saved game</button><button id="import-button" class="outline-button" data-i18n="import">Import saved game</button><button id="install-button" class="solid-button" hidden data-i18n="install">Install on this device</button></div>
+    <p class="fine-print" data-i18n="offlineNote">No ads. No account inside the game. Progress stays on this device. Add to your home screen for offline play.</p>
+  </dialog>
+  <dialog id="new-dialog" class="dialog small-dialog"><div class="dialog-heading"><div><small>EMERALD KLONDIKE</small><h2 id="new-title" data-i18n="freshDeal">A fresh start?</h2></div><button class="close-dialog icon-button" aria-label="Close">×</button></div><p id="new-description" data-i18n="newNote">Your current deal will be replaced. There is always another hand.</p><div class="dialog-buttons"><button class="close-dialog outline-button" data-i18n="keepPlaying">Keep playing</button><button id="confirm-new" class="solid-button" data-i18n="dealCards">Deal the cards</button></div></dialog>
+  <dialog id="rules-dialog" class="dialog"><div class="dialog-heading"><div><small data-i18n="classicRules">THE CLASSIC RULES</small><h2 data-i18n="howTo">How to play</h2></div><button class="close-dialog icon-button" aria-label="Close">×</button></div><div id="rules-content" class="rules-content"></div></dialog>
+  <dialog id="win-dialog" class="dialog small-dialog win-dialog"><span class="win-suits" aria-hidden="true">♠ <i>♥</i> ♣ <i>♦</i></span><small data-i18n="wellPlayed">BEAUTIFULLY PLAYED</small><h2 data-i18n="youWon">Every card, in its place.</h2><p id="win-summary"></p><button id="win-new" class="solid-button" data-i18n="anotherDeal">Another deal</button><button class="close-dialog text-button" data-i18n="backToTable">Back to the table</button></dialog>
+  <input id="import-file" type="file" accept="application/json,.json" hidden>
+  <noscript>This game needs JavaScript enabled in your browser.</noscript>
+</body>
+</html>
